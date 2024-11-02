@@ -229,7 +229,6 @@ class LLMLogger:
                 "model": model_name,
                 "time": current_time,
                 "prompts": prompts,
-                "job_description": "job_description",
                 "replies": parsed_reply["content"],
                 "total_tokens": total_tokens,
                 "input_tokens": input_tokens,
