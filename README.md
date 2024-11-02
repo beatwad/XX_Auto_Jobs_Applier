@@ -120,6 +120,8 @@ XX_Auto_Jobs_Applier — передовой автоматизированный
 
 Этот файл содержит важную информацию. Никогда не делитесь им ни с кем и не делайте этот файл отслеживаемым системой контроля версий.
 
+**Совет**: можно сделать данный файл неотслеживаемым для Git при помощи команды `git update-index --assume-unchanged data_folder/secrets.yaml` или же удалить его из списка остлеживаемых при помощи команды `git rm --cached data_folder/secrets.yaml`
+
 - `llm_api_key: [Ваш API ключ OpenAI или Ollama или Gemini]`
   - Для получения API ключа у OpenAI прочитайте эту статью или загуглите аналоги на русском: <https://medium.com/@lorenzozar/how-to-get-your-own-openai-api-key-f4d44e60c327>
   - Важно: Чтобы использовать API, нужно пополнить баланс счета. Для этого нужно зайти сюда [OpenAI billing dashboard](https://platform.openai.com/account/billing).
