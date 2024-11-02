@@ -139,7 +139,6 @@ class JobManager:
     
     def apply_job(self, company_name: str, job_title: str) -> Tuple[str, str]:
         """Откликнусться на вакансию"""
-        print(DEBUG_MODE)
         try:
             # найти кнопку отклика
             respnose_buttons = self.driver.find_elements("xpath", f"//*[@data-qa='vacancy-response-link-top']")
@@ -152,6 +151,7 @@ class JobManager:
                     # только сохраняем сгенерированные сопроводительные письма в файл
                     pass
                 else:
+                    logger.debug("Жмем на кнопку отклика")
                     respnose_buttons[0].click()
                     self._handle_response_popup()
                     result, answer_text = self._find_and_handle_questions()
@@ -167,7 +167,7 @@ class JobManager:
             return "Error", str(e)
         return "Success", ""
 
-    def _scroll_slow(self, element: WebElement, time_to_scroll_sec: float = 2) -> int:
+    def _scroll_slow(self, element: WebElement, time_to_scroll_sec: float = 1.5) -> int:
         """Медленно скроллить страницу, пока не дойдем до элемента"""
         current_position = self.driver.execute_script("""return window.pageYOffset;""")
                             
