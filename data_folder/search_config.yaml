@@ -1,0 +1,102 @@
+job_title:  # Должность (обязательное поле, должно совпадать с названием резюме)
+  Программист Python
+
+login:  # Логин: email или телефон (обязательное поле)
+  ivan_ivanov@gmail.com
+
+job_blacklist: # Список компаний, на вакансии которых не откликаемся
+  - Google
+  - Meta
+  - Apple
+
+keywords:  # Ключевые слова для поиска
+  - ML инженер
+
+search_only:  # Искать только
+  vacancy_name: true  # в названии вакансии
+  company_name: false  # в названии компании
+  vacancy_description: true  # в описании вакансии
+
+words_to_exclude:  # Исключить слова
+  - Аналитик
+  - Analyst
+
+specialization: # Специализация
+  Программист  
+
+industry: # Отрасль компании
+  Банк
+
+regions:  # Регион
+  - Москва
+
+districts:  # Район
+  - Замоскворечье
+  - Северный
+
+subway:  # Метро
+  - Павелецкая
+  - Речной вокзал
+
+income: # Уровень дохода
+  300000
+
+education:  # Образование
+  not_needed: true  # Не требуется или не указано
+  middle: true  # Среднее профессиональное
+  higher: true  # Высшее
+
+experience: # Требуемый опыт работы (обязательное поле) (может принимать только одно значение true)
+  doesnt_matter: false  # Не имеет значения
+  no_experience: false  # Нет опыта
+  between_1_and_3: true  # От 1 года до 3 лет
+  between_3_and_6: false  # От 3 до 6 лет
+  6_and_more: false  # Более 6 лет
+
+job_type:  # Тип занятости
+  full_time: true  # Полная занятость
+  part_time: false  # Частичная занятость
+  project: false  # Проектная работа/разовое задание
+  volunteer: false  # Волонтерство
+  probation: false  # Стажировка
+  civil_law_contract: true  # Оформление по ГПХ или по совместительству
+
+work_schedule:  # График работы
+  full_day: false  # Полный день
+  shift: false  # Сменный график
+  flexible: true  # Гибкий график
+  remote: true  # Удаленная работа
+  fly_in_fly_out: false  # Вахтовый метод
+
+side_job:  # Подработка
+  project: false  # Разовое задание или проект
+  part: false  # Неполный день
+  from_4_hours_per_day: false  # От 4 часов в день
+  weekend: false  # По выходным
+  evenings: false  # По вечерам
+
+other_params:  # Другие параметры
+  with_address: true  # С адресом
+  accept_handicapped: false  # Доступные людям с инвалидностью
+  not_from_agency: true  # Без вакансий от кадровых агентств
+  accept_kids: false  # Доступные с 14 лет
+  accredited_it: true  # От аккредитованных ИТ-компаний
+  low_performance: false  # Меньше 10 откликов
+
+sort_by:  # Сортировать выдачу (обязательное поле) (может принимать только одно значение true)
+  relevance: true  # по соответствию
+  publication_time: false  # по дате изменения
+  salary_desc: false  # по убыванию зарплат
+  salary_asc: false  # по возрастанию зарплаты
+
+output_period:  # Выводить (обязательное поле) (может принимать только одно значение true)
+  all_time: true  # за всё время
+  month: false  # за месяц
+  week: false  # за неделю
+  three_days: false  # за последние три дня
+  one_day: false  # за сутки
+
+output_size:  # Показывать на странице (обязательное поле) (может принимать только одно значение true)
+  show_20: false
+  show_50: true
+  show_100: false
