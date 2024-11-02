@@ -318,19 +318,18 @@ def main():
         create_and_run_bot(parameters, llm_api_key, resume)
     except ConfigError as ce:
         logger.error(f"Ошибка конфигурации: {str(ce)}")
-        # logger.error(f"Refer to the configuration guide for troubleshooting: https://github.com/feder-cr/AIHawk_AIHawk_automatic_job_application/blob/main/readme.md#configuration {str(ce)}")
+        logger.error(f"Обратитесь к гайду по настройке приложения: https://github.com/beatwad/XX_Auto_Jobs_Applier/blob/master/README.md#Настройка")
     except FileNotFoundError as fnf:
         logger.error(f"Файл не найден: {str(fnf)}")
-        logger.error("Убедитесь, что все необходимые файлы находятся в папке data_folder")
-        # logger.error("Refer to the file setup guide: https://github.com/feder-cr/AIHawk_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
+        logger.error("Убедитесь, что все необходимые файлы находятся в папке data_folder, подробнее здесь: https://github.com/beatwad/XX_Auto_Jobs_Applier/blob/master/README.md#Использование")
     except RuntimeError:
         tb_str = traceback.format_exc()
         logger.error(f"Runtime error: {tb_str}")
-        # logger.error("Refer to the configuration and troubleshooting guide: https://github.com/feder-cr/AIHawk_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
+        logger.error(f"Обратитесь к гайду по ошибкам приложения: https://github.com/beatwad/XX_Auto_Jobs_Applier/blob/master/README.md#Проблемы")
     except Exception:
         tb_str = traceback.format_exc()
         logger.error(f"Неизвестная ошибка: {tb_str}")
-        # logger.error("Refer to the general troubleshooting guide: https://github.com/feder-cr/AIHawk_AIHawk_automatic_job_application/blob/main/readme.md#configuration")
+        logger.error(f"Обратитесь к гайду по ошибкам приложения: https://github.com/beatwad/XX_Auto_Jobs_Applier/blob/master/README.md#Проблемы")
 
 if __name__ == "__main__":
     main()
