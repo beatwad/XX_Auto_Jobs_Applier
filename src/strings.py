@@ -140,7 +140,7 @@ Answer the following question based on the provided salary expectations.
 ## Example
 My resume: Looking for a salary in the range of 50k-60k USD.
 Question: What are your salary expectations?
-55000.
+From 50000 to 60000.
 
 Salary Expectations: {resume_section}
 Question: {question}

@@ -1,15 +1,15 @@
 personal_information:  # личная информация + контакты
-  name: Иван
-  surname: Иванов
+  name: Алексей
+  surname: Семенов
   date_of_birth: 15.07.1995
   country: Россия
   city: Москва
-  phone: 89998765432
-  email: ivan_ivanov@gmail.com
-  telegram: ivanov95
-  github: https://www.github.com/ivanov95/
-  linkedin: https://www.linkedin.com/in/ivan-ivanov-f3e57c712/
-  personal_site: https://ivan-ivanov.ru
+  phone: 89335684864
+  email: alexneth93@gmail.com
+  telegram: alexneth93
+  github: https://www.github.com/alexneth93/
+  linkedin: https://www.linkedin.com/in/alex-semenov-f3e57c712/
+  personal_site: https://alex-semenov.ru
 
 legal_authorization:  # в каких странах есть разрешение на работу
   countries:
@@ -44,7 +44,7 @@ experience_details:  # сколько лет общего опыта в инду
   - total_experience: 4 года
   
   - position: Python разработчик
-    company: ООО «Horns & Hooves»
+    company: ООО «Green-Park»
     employment_period: Август 2022 — настоящее время
     industry: Веб-разработка
     key_responsibilities:
@@ -53,6 +53,7 @@ experience_details:  # сколько лет общего опыта в инду
     achievements:
       - Организовал структуру проекта
       - Cоздал посадочную страницу на React, обеспечивающую UX/UI-оптимизацию и взаимодействие с пользователем
+      - Внедрил асинхронную обработку чеков API Федеральной налоговой службы
       - Интегрировал API Яндекс Карт
       - Ускорил деплой на 10 минут благодаря Git + Docker-compose
       - Настроил веб-сервер при помощи Nginx и Сertbot
@@ -63,6 +64,7 @@ experience_details:  # сколько лет общего опыта в инду
       - Python
       - Django REST Framework
       - React
+      - Celery
       - RabbitMQ
       - Redis
       - PostgreSQL
@@ -70,7 +72,7 @@ experience_details:  # сколько лет общего опыта в инду
       - Unit tests
 
   - position: Python разработчик
-    company: ПилРос
+    company: ПРАЙМ ГРУП
     employment_period: Сентябрь 2020 — Июнь 2022
     industry: Веб-разработка
     key_responsibilities:
@@ -79,7 +81,6 @@ experience_details:  # сколько лет общего опыта в инду
     achievements:
       - Разработал базу данных для хранения и обновления рабочего расписания
       - Внедрил систему мгновенных уведомлений, позволяющую оповещать клиентов об изменениях в заказах в режиме реального времени
-      - Внедрил асинхронную обработку чеков API Федеральной налоговой службы
       - Интегрировал API Яндекс Карт и Яндекс Погоды
     skills_acquired:
       - UI design
@@ -91,17 +92,19 @@ experience_details:  # сколько лет общего опыта в инду
       - PostgreSQL
       - Aiogram
       - REST API
+      - JavaScript
+      - HTML&CSS
       - Unit tests
       - UI design
 
 projects:  # какие проекты сделал(а)
   - name: Client Interaction Telegram Bot
     description: Телеграм-бот на Aiogram для взаимодействия с клиентами
-    link: https://www.github.com/ivanov95/client_int_bot.git
+    link: https://www.github.com/alexneth93/client_int_bot.git
 
   - name: mqtt-packet-parser
     description: Модуль Node.js для анализа пакетов MQTT, эффективность анализа повышена на 40%
-    link: https://www.github.com/ivanov95/mqtt_packet_parser.git
+    link: https://www.github.com/alexneth93/mqtt_packet_parser.git
 
 availability:  # как скоро готов(а) выйти на работу
   notice_period: 2 недели

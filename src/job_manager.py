@@ -129,13 +129,13 @@ class JobManager:
                 self.page_num += 1
                 # делать случайную паузу на каждой странице
                 logger.debug("Страница обработана, ждем от 5-10 секунд.")
-                self._pause((5, 10))
+                self._pause(5, 10)
                 logger.debug(f"Переходим на страницу {self.page_num}")
             except Exception:
                 tb_str = traceback.format_exc()
                 logger.error(f"Неизвестная ошибка: {tb_str}")
                 continue
-        logger.debug("Достигнуто максимально допустимое число откликов. Завершаем работу.")
+        logger.debug("Достигнуто максимально допустимое число откликов либо закончились вакансии. Завершаем работу.")
     
     def apply_job(self, company_name: str, job_title: str) -> Tuple[str, str]:
         """Откликнусться на вакансию"""
@@ -152,8 +152,12 @@ class JobManager:
                     pass
                 else:
                     logger.debug("Жмем на кнопку отклика")
+                    curr_url = self.driver.current_url
                     respnose_buttons[0].click()
-                    self._handle_response_popup()
+                    self._pause()
+                    # если всплыло окно - выбираем нужное резюме
+                    if curr_url == self.driver.current_url:
+                        self._handle_response_popup()
                     result, answer_text = self._find_and_handle_questions()
                     # если на все вопросы были найдены ответы, 
                     # то продолжаем отклик + пишем сопроводительное письмо 
@@ -198,9 +202,9 @@ class JobManager:
     
     def _send_repsonses(self) -> None:
         """Разослать отклики всем работодателям на странице"""
-        minimum_page_time = time.time() + MINIMUM_WAIT_TIME_SEC
         employers = self.driver.find_elements("xpath", "//*[starts-with(@data-qa, 'serp-item__title-text')]")
         for employer in employers:
+            minimum_job_time = time.time() + MINIMUM_WAIT_TIME_SEC
             # зайти на страницу к работодателю
             self._scroll_slow(employer)
             employer.click()
@@ -243,11 +247,11 @@ class JobManager:
             self.driver.close()
             self._pause()
             self.driver.switch_to.window(window_handles[0])
-        # если страница была обработана быстрее, чем за минимальное время - 
-        # подождать, пока это время не закончится       
-        time_left = int(minimum_page_time - time.time())
-        if time_left > 0:
-            self._sleep((time_left, time_left + 5))
+            # если страница была обработана быстрее, чем за минимальное время - 
+            # подождать, пока это время не закончится       
+            time_left = int(minimum_job_time - time.time())
+            if time_left > 0:
+                self._sleep((time_left, time_left + 5))
                 
     def _scrape_employer_page(self) -> Dict[str, str]:
         """
@@ -416,17 +420,18 @@ class JobManager:
             logger.error(f"Ошибка при загрузке списка вопросов из JSON файла")
             raise Exception(f"Ошибка при загрузке списка вопросов из JSON файла: \nTraceback:\n{tb_str}")
     
-    def _handle_response_popup(self) -> None:
-        """Обрабатываем случай, когда всплыло окошко с вариантами выбора резюме"""
-        self._pause()
+    def _handle_response_popup(self, scroll: bool = False) -> None:
+        """Выбираем нужное резюме"""
         if self.driver.find_elements("xpath", "//*[@class='vacancy-response-popup-resume-list']"):
             logger.debug("Нашли всплывающее окно с выбором резюме, выбираем нужное")
             resume_buttons = self.driver.find_elements("xpath", "//*[@data-qa='resume-title']")
             for button in resume_buttons:
                 if button.text == self.job_title:
+                    if scroll:
+                        self._scroll_slow(button)
                     button.click()
-                    self._pause()
-                    self.driver.find_element("xpath", "//*[@data-qa='vacancy-response-submit-popup']").click()
+                    if not scroll:
+                        self.driver.find_element("xpath", "//*[@data-qa='vacancy-response-submit-popup']").click()
     
     def _find_and_handle_questions(self) -> Tuple[bool, str]:
         """Если на странице есть вопросы - использовать LLM для ответа на них"""
@@ -446,11 +451,9 @@ class JobManager:
                     return False, answer_text
         else:
             logger.debug("Вопросы не найдены.")
-        # если присутствует выбор резюме - выбрать нужное
-        resume_buttons = self.driver.find_elements("xpath", "//*[@data-qa='resume-title']")
-        for button in resume_buttons:
-            if button.text == self.job_title:
-                button.click()
+        if self.driver.find_elements("xpath", "//*[@class='vacancy-response-popup-resume-list']"):
+            self._pause()
+            self._handle_response_popup(scroll=True)
         return True, ""
 
     def _write_and_send_cover_letter(self, cover_letter_text: str) -> None:
@@ -477,6 +480,7 @@ class JobManager:
                 cover_letter_button.click()
                 # записать в поле текст сопроводительного письма
                 cover_letter_field = self.driver.find_elements("xpath", f"//*[@data-qa='vacancy-response-popup-form-letter-input']")
+                self._pause()
                 if cover_letter_field:
                     self._enter_text(cover_letter_field[0], cover_letter_text)
                     self._pause()
@@ -602,16 +606,17 @@ class JobManager:
         """Аналог _pause, но ожидание можно прервать"""
         low, high = sleep_interval
         sleep_time = random.randint(low, high)
+        time_to_wait = f"{sleep_time // 60} минут, {sleep_time % 60} секунд" 
         try:
             user_input = inputimeout(
-                prompt=f"Делаем паузу на {round(sleep_time / 60, 2)} минут(ы). Нажмите Enter, чтобы прекратить ожидание.",
+                prompt=f"Делаем паузу на {time_to_wait}. Нажмите Enter, чтобы прекратить ожидание.",
                 timeout=sleep_time).strip().lower()
         except TimeoutOccurred:
-            user_input = ''  # No input after timeout
+            user_input = ''
         if user_input != '':
             logger.debug("Прекращаем ожидание.")
         else:
-            logger.debug(f"Ожидание продлилось {sleep_time} секунд.")
+            logger.debug(f"Ожидание продлилось {time_to_wait}.")
     
     def _find_by_text_and_click(self, text: str) -> None:
         """Функция для поиска элемента по тексту и клика по нему"""

@@ -37,7 +37,7 @@ MINIMUM_LOG_LEVEL = "DEBUG"
 MAX_APPLIES_NUM = 200
 
 # Минимальное время, затрачиваемое на один отклик на вакансию
-MINIMUM_WAIT_TIME_SEC = 60
+MINIMUM_WAIT_TIME_SEC = 10
 
 """
 Тип LLM

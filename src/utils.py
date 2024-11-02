@@ -16,7 +16,7 @@ else:
     logger.remove()
     logger.add(sys.stderr, level="DEBUG")
 
-chromeProfilePath = os.path.join(os.getcwd(), "chrome_profile", "linkedin_profile")
+chromeProfilePath = os.path.join(os.getcwd(), "chrome_profile", "hh_profile")
 
 def ensure_chrome_profile() -> str:
     """Проверяем, что профиль Chrome существует"""
