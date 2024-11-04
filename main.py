@@ -13,6 +13,8 @@ from src.bot_facade import BotFacade
 from src.job_manager import JobManager
 from loguru import logger
 
+# TODO: handle radio buttons
+
 log_file = "log/app_log.log"
 logger.add(log_file)
 

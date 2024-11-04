@@ -1,5 +1,6 @@
 import os
 import re
+import traceback
 import textwrap
 import time
 import json
@@ -610,9 +611,14 @@ class GPTAnswerer:
         skills = self.resume.get("skills")
         interests = self.resume.get("interests")
         chain = self.chains.get("job_is_interesting")
-        output = chain.invoke(
-            {"resume": self.resume, "job_description": self.job_description, 
-             "skills": skills, "interests": interests})
+        try:
+            output = chain.invoke(
+                {"resume": self.resume, "job_description": self.job_description, 
+                "skills": skills, "interests": interests})
+        except Exception:
+            tb_str = traceback.format_exc()
+            logger.error(f"Ошибка при вызове LLM: \nTraceback:\n{tb_str}")
+            return False
         logger.debug(f"Вакансия интересна? Ответ LLM: '{output}'")
         if output.lower() == "yes":
             logger.warning(f"Вакансия интересна, продолжаем.")

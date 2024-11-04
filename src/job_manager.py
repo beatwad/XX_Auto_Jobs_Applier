@@ -155,6 +155,11 @@ class JobManager:
                     curr_url = self.driver.current_url
                     respnose_buttons[0].click()
                     self._pause()
+                    # 
+                    # Если выскакивает предупреждение о возможной релокации - пропускаем
+                    if self.driver.find_elements("xpath", "//*[@data-qa='relocation-warning-confirm']"):
+                        logger.warning("В резюме не указано, что вы готовы переехать в страну работодателя, пропускаем вакансию")
+                        return "Skip", "В резюме не указано, что вы готовы переехать в страну работодателя."
                     # если всплыло окно - выбираем нужное резюме
                     if curr_url == self.driver.current_url:
                         self._handle_response_popup()
@@ -221,11 +226,13 @@ class JobManager:
             # - начать процесс отклика на вакансию
             if self._is_blacklisted(self._sanitize_text(company_name)):
                 apply_result = "Skip", "Вакансия в черном списке"
+                logger.warning("Вакансия в черном списке, пропускаем")
             else:
                 is_applied, reason = self._is_already_applied_to_job_or_company(self._sanitize_text(company_name), 
                                                                                 self._sanitize_text(company_job_title))
                 if is_applied:
                     apply_result = "Skip", reason
+                    logger.warning(f"Пропускаем вакансию по причине: {reason}")
                 else:
                     self.gpt_answerer.set_job(job)
                     if MONKEY_MODE:
@@ -239,6 +246,7 @@ class JobManager:
                         apply_result = self.apply_job(company_name, company_job_title)
                     else:
                         apply_result = "Skip", "Вакансия не интересна"
+                        logger.debug("Вакансия не интересна, пропускаем")
             # увеличиваем счетчик вакансий, если отклик был успешен
             if apply_result == "Success":
                 self.vacancy_num += 1
