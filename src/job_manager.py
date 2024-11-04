@@ -68,7 +68,7 @@ class JobManager:
         self.failed_companies = self._load_companies_from_json("failed.json")
         # загрузить список вопросов, на которые уже были даны ответы
         self.seen_answers = self._load_questions_from_json()
-        logger.debug("Параметры успешно установлены")
+        logger.debug("Параметры успешно установлены") 
     
     def set_advanced_search_params(self) -> None:
         """Задать дополнительные параметры поиска в hh.ru"""
