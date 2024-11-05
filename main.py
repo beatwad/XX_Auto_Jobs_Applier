@@ -30,7 +30,7 @@ class ConfigValidator:
     def load_yaml_file(yaml_path: Path) -> dict:
         """Загрузить настройки из YAML файла конфигурации"""
         try:
-            with open(yaml_path, 'r') as stream:
+            with open(yaml_path, 'r', encoding="UTF-8") as stream:
                 return yaml.safe_load(stream)
         except yaml.YAMLError as exc:
             raise ConfigError(f"Ошибка в чтении файла {yaml_path}: {exc}")

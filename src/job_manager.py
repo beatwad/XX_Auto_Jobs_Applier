@@ -244,6 +244,8 @@ class JobManager:
                     # откликнуться на вакансию только если она интересна
                     if job_is_interesting:
                         apply_result = self.apply_job(company_name, company_job_title)
+                    elif job_is_interesting is None:
+                        apply_result = "Error", "Ошибка при вызове LLM."
                     else:
                         apply_result = "Skip", "Вакансия не интересна"
                         logger.debug("Вакансия не интересна, пропускаем")

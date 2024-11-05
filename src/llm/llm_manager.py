@@ -603,7 +603,7 @@ class GPTAnswerer:
         logger.debug(f"Ответ на вопрос: {output}")
         return output
     
-    def job_is_interesting(self) -> bool:
+    def job_is_interesting(self) -> bool|None:
         """
         Спрашиваем у LLM, может интересна ли на быть интересна 
         данная вакансия с учетом нашего резюме и интересов
@@ -618,7 +618,7 @@ class GPTAnswerer:
         except Exception:
             tb_str = traceback.format_exc()
             logger.error(f"Ошибка при вызове LLM: \nTraceback:\n{tb_str}")
-            return False
+            return None
         logger.debug(f"Вакансия интересна? Ответ LLM: '{output}'")
         if output.lower() == "yes":
             logger.warning(f"Вакансия интересна, продолжаем.")
