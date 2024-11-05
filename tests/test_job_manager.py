@@ -43,7 +43,9 @@ def test_apply_job(job_manager):
     job_manager._handle_response_popup = Mock()
     job_manager._find_and_handle_questions = Mock(return_value=(True, ""))
     job_manager._write_and_send_cover_letter = Mock()
-    job_manager.driver.find_elements.return_value = [Mock()]
+    # при первом вызове job_manager.driver.find_elements вернет непустой списко
+    # при втором вызове - пустой список
+    job_manager.driver.find_elements.side_effect = [[Mock()], []]
 
     job_manager.apply_job("Test Company", "Test Job")
 
@@ -54,7 +56,7 @@ def test_apply_job(job_manager):
 def test_send_responses(job_manager):
     job_manager._scrape_employer_page = Mock(return_value={"company_name": "Test Company", "title": "Test Job"})
     job_manager._is_blacklisted = Mock(return_value=False)
-    job_manager._is_already_applied_to_job_or_company = Mock(return_value=False)
+    job_manager._is_already_applied_to_job_or_company = Mock(return_value=(False, ""))
     job_manager.apply_job = Mock(return_value=("Success", ""))
     job_manager._save_company_to_json = Mock()
     job_manager._sleep = Mock()
@@ -188,8 +190,10 @@ def test_is_already_applied_to_job_or_company(job_manager):
     job_manager.login = "test_user"
     job_manager.job_title = "test_job"
 
-    assert job_manager._is_already_applied_to_job_or_company("company a", "job 1") is True
-    assert job_manager._is_already_applied_to_job_or_company("company b", "job 1") is False
+    result_a = job_manager._is_already_applied_to_job_or_company("company a", "job 1")
+    assert result_a[0] is True
+    result_b = job_manager._is_already_applied_to_job_or_company("company b", "job 1")
+    assert result_b[0] is False
 
 
 @patch("selenium.webdriver.support.ui.WebDriverWait.until", value=Mock())
