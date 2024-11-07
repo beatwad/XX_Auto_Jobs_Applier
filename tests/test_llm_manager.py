@@ -73,7 +73,7 @@ def test_job_is_interesting_yes(mock_llm_logger, gpt_answerer):
     gpt_answerer.job = {"description": "Looking for a Python developer interested in AI"}
 
     mock_chain = MagicMock()
-    mock_chain.invoke.return_value = "yes"
+    mock_chain.invoke.return_value = "Score: 10. Reasoning: test"
     gpt_answerer.chains["job_is_interesting"] = mock_chain
 
     # Call the method
@@ -94,7 +94,7 @@ def test_job_is_interesting_no(mock_llm_logger, gpt_answerer):
     gpt_answerer.job = {"description": "Looking for a C++ developer with interest in embedded systems"}
 
     mock_chain = MagicMock()
-    mock_chain.invoke.return_value = "no"
+    mock_chain.invoke.return_value = "Score: 1. Reasoning: test"
     gpt_answerer.chains["job_is_interesting"] = mock_chain
 
     # Call the method
