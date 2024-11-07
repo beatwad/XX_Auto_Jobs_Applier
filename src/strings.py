@@ -422,29 +422,64 @@ func_summarize_prompt_template = """
         ## Text without placeholders:"""
 
 
+# job_is_interesting = """
+# Ты ищешь работу в сфере IT на сайте по поиску работы. Твоя задача, исходя из текста вакансии, текста резюме и списка навыков 
+# опеределить, интересна ли данная работа тебе или нет. 
+# Работа считается интересной, если в вакансии предлагают заниматься в той же области или теми же вещами, которыми ты занимался до этого,
+# либо если больше половины указанных в вакансии навыков тебе известны, либо если то, чем предлагают заниматься на данной работе,
+# находится в списке твоих интересов.
+# ## Описание работы:
+# ```
+# {job_description}
+# ```
+# ## Твое резюме:
+# ```
+# {resume}
+# ```
+# ## Список твоих навыков:
+# ```
+# {skills}
+# ```
+# ## Список твоих интересов:
+# ```
+# {interests}
+# ```
+# В качестве ответа верни либо 'Yes', если считаешь, что вакансия тебе интересна, либо 'No' в противном случае.
+# """
+
 job_is_interesting = """
-Ты ищешь работу в сфере IT на сайте по поиску работы. Твоя задача, исходя из текста вакансии, текста резюме и списка навыков 
-опеределить, интересна ли данная работа тебе или нет. 
-Работа считается интересной, если в вакансии предлагают заниматься в той же области или теми же вещами, которыми ты занимался до этого,
-либо если больше половины указанных в вакансии навыков тебе известны, либо если то, чем предлагают заниматься на данной работе,
-находится в списке твоих интересов.
-## Описание работы:
+   Evaluate whether the provided resume meets the requirements outlined in the job description. Determine if the candidate is suitable for the job based on the information provided.
+
+## Job Description:
 ```
 {job_description}
 ```
-## Твое резюме:
+## Resume:
 ```
 {resume}
 ```
-## Список твоих навыков:
+## Your skills:
 ```
 {skills}
 ```
-## Список твоих интересов:
+## Your interests:
 ```
 {interests}
 ```
-В качестве ответа верни либо 'Yes', если считаешь, что вакансия тебе интересна, либо 'No' в противном случае.
+
+Instructions:
+1. Extract the key requirements from the job description, identifying hard requirements (must-haves) and soft requirements (nice-to-haves).
+2. Identify the relevant qualifications from the resume and skill list.
+3. Compare the qualifications against the requirements, ensuring all hard requirements are met. Allow for a 1-year experience gap if applicable, as experience is usually a hard requirement.
+4. Provide a suitability score from 1 to 10. where 1 indicates the candidate does not meet any requirements and 10 indicates the candidate meets all requirements.
+5. If the job matches one or more of canditate's interests - add 1 point to the overall score.
+6. Provide a brief reasoning for the score, highlighting which requirements are met and which are not.
+7. If job description language is Russian - answer in Russian. Else answer in English.
+
+Output Format (Strictly follow this format):
+Score: [numerical score]
+Reasoning: [brief explanation]
+Do not output anything else in the response other than the score and reasoning.
 """
 
 coverletter_template = """

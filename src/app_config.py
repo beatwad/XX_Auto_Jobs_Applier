@@ -12,7 +12,7 @@ MONKEY_MODE = False
 Если режим активирован - не откликаемся на вакансии, а только сохраняем сгенерированные
 сопроводительные письма в файл data_folder/output/llm_api_calls.json
 """
-DEBUG_MODE = False
+DEBUG_MODE = True
 
 """
 Если этот режим активирован - приложение будет использовать одно готовое сопроводительное письмо 
@@ -20,6 +20,12 @@ DEBUG_MODE = False
 Текст готового сопроводительного письма можно найти в файле strings.py, переменная fixed_cover_letter
 """
 FIXED_COVER_LETTER = False
+
+"""
+Если LLM оценила степень 'интересности' работы выше этого порога, работа - считается интересной для отклика. 
+В противном случае нет.
+"""
+JOB_IS_INTERESTING_THRESH = 7
 
 """
 Уровень логирования
@@ -51,7 +57,7 @@ MINIMUM_WAIT_TIME_SEC = 10
 LLM_MODEL_TYPE = "openai" 
 
 # Модель LLM
-LLM_MODEL = "gpt-4o-mini"  
+LLM_MODEL = "gpt-4o-mini"
 
 # Если True - подавать в каждую компанию не более чем одну вакансию
 APPLY_ONCE_AT_COMPANY = True

@@ -23,7 +23,7 @@ from langchain_core.prompts import ChatPromptTemplate
 import src.strings as strings
 from loguru import logger
 
-from src.app_config import LLM_MODEL_TYPE, LLM_MODEL, FIXED_COVER_LETTER, PRICE_DICT
+from src.app_config import JOB_IS_INTERESTING_THRESH, LLM_MODEL_TYPE, LLM_MODEL, FIXED_COVER_LETTER, PRICE_DICT
 
 load_dotenv()
 
@@ -605,9 +605,10 @@ class GPTAnswerer:
     
     def job_is_interesting(self) -> bool|None:
         """
-        Спрашиваем у LLM, может интересна ли на быть интересна 
-        данная вакансия с учетом нашего резюме и интересов
+        Спрашиваем у LLM, может ли быть интересна 
+        данная вакансия с учетом нашего резюме, навыков и интересов
         """
+        logger.debug("Проверяем, насколько вакансия может быть интересна.")
         skills = self.resume.get("skills")
         interests = self.resume.get("interests")
         chain = self.chains.get("job_is_interesting")
@@ -619,12 +620,19 @@ class GPTAnswerer:
             tb_str = traceback.format_exc()
             logger.error(f"Ошибка при вызове LLM: \nTraceback:\n{tb_str}")
             return None
-        logger.debug(f"Вакансия интересна? Ответ LLM: '{output}'")
-        if output.lower() == "yes":
-            logger.warning(f"Вакансия интересна, продолжаем.")
-            return True
-        logger.warning(f"Вакансия не интересна, переходим к следующей.")
-        return False
+        logger.debug(f"Ответ LLM: '{output}'")
+        # парсим ответ LLM
+        try:
+            score = re.search(r'Score: (\d+)', output).group(1)
+            reasoning = re.search(r'Reasoning: (.+)', output, re.DOTALL).group(1)
+        except AttributeError:
+            logger.error("LLM вернула некорректный ответ")
+            return False
+        logger.info(f"Степень 'интересности' вакансии: {score}")
+        if int(score) < JOB_IS_INTERESTING_THRESH :
+            logger.debug(f"Работа не интересна: {reasoning}")
+            return False
+        return True
     
     def write_cover_letter(self) -> str:
         """
