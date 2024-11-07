@@ -455,7 +455,7 @@ class JobManager:
         if questions:
             logger.debug("Нашли вопрос(ы).")
             for question in questions:
-                answer, answer_text = self._find_and_handle_textbox_question(question)
+                answer, answer_text = self.handle_question(question)
                 if not answer:
                     logger.debug("Прерываем отклик на вакансию.")
                     return False, answer_text
@@ -534,45 +534,151 @@ class JobManager:
                         break
                 self.driver.switch_to.default_content()
                 
-    def _find_and_handle_textbox_question(self, question: WebElement) -> Tuple[bool, str]:
-        """Функция для поиска в резюме ответа и собственно ответа на вопросы работодателя"""
-        self._scroll_slow(question)
-        text_question_fields = question.find_elements("tag name", 'textarea')
-        if text_question_fields:
-            question_text = question.text.lower().strip()
-            logger.debug(f"Нашли текстовый вопрос: {question_text}")
-            text_field = text_question_fields[0]
+    def handle_question(self, question: WebElement) -> Tuple[bool, str]:
+        """
+        Метод для определения типа вопроса и выбора соответствующего 
+        подметода для ответа на данный вопрос
+        """
+        radio_fields = question.find_elements("class name", 'bloko-radio')
+        if radio_fields:
+            return self._handle_radio_question(question, radio_fields)
 
-            # поискать ответ в файле сохраненных предыдущих ответов
-            existing_answer = None
-            sanitized_question = self._sanitize_text(question_text)
-            for answer in self.seen_answers:
-                if self._sanitize_text(answer['question']) == sanitized_question:
-                    existing_answer = answer['answer']
-                    logger.debug(f"Найден готовый ответ: {existing_answer}")
-                    break
+        checkbox_fields = question.find_elements("class name", 'bloko-checkbox')
+        if checkbox_fields:
+            return self._handle_checkbox_question(question, checkbox_fields)
 
-            if existing_answer:
-                answer = existing_answer
-                logger.debug(f"Используем готовый ответ: {answer}")
-            else:
-                answer = self.gpt_answerer.answer_question_textual_wide_range(question_text)
-                if answer.startswith("Не смогли определить тип вопроса, возвращаем пустой ответ"):
-                    return False, answer
-                logger.debug(f"Сгенерирован ответ: {answer}")
-                self.seen_answers.append({'question': question_text, 'answer': answer})
-                # сохранить новый ответ в файл
-                self._save_questions_to_json(self.seen_answers)
-                logger.debug("Тестовый вопрос сохранен в JSON.")
-
-            time.sleep(1)
-            self._enter_text(text_field, answer)
-            logger.debug("Ответ введен в textbox")
-            return True, ""
-
-        output = f"Не найдено поля для ввода текста ответа на вопрос {question.text} от работодателя"
-        logger.debug(output)
+        text_fields = question.find_elements("xpath", "./*")
+        for field in text_fields:
+            if field.get_attribute("class") == "bloko-form-item-baseline":
+                text_fields = field.find_elements("xpath", "./*")
+                for text_field in text_fields:
+                    if text_field.get_attribute("class").startswith("bloko-textarea"):
+                        return self._handle_textbox_question(question, text_field)
+                    
+        output = f"Не найдено поля для ввода текста или варианта ответа на вопрос {question.text}"
+        logger.warning(output)
         return False, output
+    
+    def _handle_radio_question(self, question: WebElement, radio_fields: List[WebElement]) -> Tuple[bool, str]:
+        """Метод для ответа на вопрос с возможностью выбора одной опции"""
+        self._scroll_slow(question)
+        question_text = question.text
+        logger.debug(f"Нашли вопрос c выбором одного ответа: {question_text}")
+        question_text = question_text.lower().strip()
+        options = [radio_field.text for radio_field in radio_fields]
+        answer = self.gpt_answerer.select_one_answer_from_options(question_text, options)
+        # Находим и отмечаем подходящий вариант ответа
+        for radio_field in radio_fields:
+            if self._sanitize_text(radio_field.text) == self._sanitize_text(answer):
+                radio_field.click()
+                self._pause()
+                return True, ""
+            
+        output = f"Не нашли ни одного подходящего ответа на вопрос {question.text}"
+        logger.warning(output)
+        return False, output
+
+
+    def _handle_checkbox_question(self, question: WebElement, checkbox_fields: List[WebElement]) -> Tuple[bool, str]:
+        """Метод для ответа на вопрос с возможностью выбора нескольких опций"""
+        self._scroll_slow(question)
+        question_text = question.text
+        logger.debug(f"Нашли вопрос c выбором множества ответов: {question_text}")
+        question_text = question_text.lower().strip()
+        options = [checkbox_field.text for checkbox_field in checkbox_fields]
+        answers = self.gpt_answerer.select_many_answers_from_options(question_text, options)
+        answers = [self._sanitize_text(answer) for answer in answers]
+        # Находим и отмечаем все подходящие варианты ответа
+        result = False
+        for checkbox_field in checkbox_fields:
+            if self._sanitize_text(checkbox_field.text) in answers:
+                checkbox_field.click()
+                result = True
+                self._pause()
+
+        if result:
+            return True, ""
+        
+        output = f"Не нашли ни одного подходящего ответа на вопрос {question.text}"
+        logger.warning(output)
+        return False, output
+
+    
+    def _handle_textbox_question(self, question: WebElement, text_field: WebElement) -> Tuple[bool, str]:
+        """Метод для ответа на текстовый вопрос"""
+        self._scroll_slow(question)
+        question_text = question.text
+        logger.debug(f"Нашли текстовый вопрос: {question_text}")
+        question_text = question_text.lower().strip()
+
+        # поискать ответ в файле сохраненных предыдущих ответов
+        existing_answer = None
+        sanitized_question = self._sanitize_text(question_text)
+        for answer in self.seen_answers:
+            if self._sanitize_text(answer['question']) == sanitized_question:
+                existing_answer = answer['answer']
+                logger.debug(f"Найден готовый ответ: {existing_answer}")
+                break
+
+        if existing_answer:
+            answer = existing_answer
+            logger.debug(f"Используем готовый ответ: {answer}")
+        else:
+            answer = self.gpt_answerer.answer_question_textual_wide_range(question_text)
+            if answer.startswith("Вопрос не принадлежит ни к одной из известных тем, возвращаем пустой ответ."):
+                output = f"Не смогли определить тип вопроса: {question.text}"
+                logger.warning(output)
+                return False, output
+            logger.debug(f"Сгенерирован ответ: {answer}")
+            self.seen_answers.append({'question': question_text, 'answer': answer})
+            # сохранить новый ответ в файл
+            self._save_questions_to_json(self.seen_answers)
+            logger.debug("Тестовый вопрос сохранен в JSON.")
+
+        time.sleep(1)
+        self._enter_text(text_field, answer)
+        logger.debug("Ответ введен в textbox")
+        return True, ""
+    
+    # def _find_and_handle_textbox_question(self, question: WebElement) -> Tuple[bool, str]:
+    #     """Функция для поиска в резюме ответа и собственно ответа на вопросы работодателя"""
+    #     self._scroll_slow(question)
+    #     text_question_fields = question.find_elements("tag name", 'textarea')
+    #     if text_question_fields:
+    #         question_text = question.text.lower().strip()
+    #         logger.debug(f"Нашли текстовый вопрос: {question_text}")
+    #         text_field = text_question_fields[0]
+
+    #         # поискать ответ в файле сохраненных предыдущих ответов
+    #         existing_answer = None
+    #         sanitized_question = self._sanitize_text(question_text)
+    #         for answer in self.seen_answers:
+    #             if self._sanitize_text(answer['question']) == sanitized_question:
+    #                 existing_answer = answer['answer']
+    #                 logger.debug(f"Найден готовый ответ: {existing_answer}")
+    #                 break
+
+    #         if existing_answer:
+    #             answer = existing_answer
+    #             logger.debug(f"Используем готовый ответ: {answer}")
+    #         else:
+    #             answer = self.gpt_answerer.answer_question_textual_wide_range(question_text)
+    #             if answer.startswith("Не смогли определить тип вопроса, возвращаем пустой ответ"):
+    #                 return False, answer
+    #             logger.debug(f"Сгенерирован ответ: {answer}")
+    #             self.seen_answers.append({'question': question_text, 'answer': answer})
+    #             # сохранить новый ответ в файл
+    #             self._save_questions_to_json(self.seen_answers)
+    #             logger.debug("Тестовый вопрос сохранен в JSON.")
+
+    #         time.sleep(1)
+    #         self._enter_text(text_field, answer)
+    #         logger.debug("Ответ введен в textbox")
+    #         return True, ""
+
+    #     output = f"Не найдено поля для ввода текста ответа на вопрос {question.text} от работодателя"
+    #     logger.debug(output)
+    #     return False, output
     
     def _is_blacklisted(self, company: str) -> bool:
         """Проверить, не находится ли компания в черном списке"""

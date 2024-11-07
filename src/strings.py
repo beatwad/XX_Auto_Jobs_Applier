@@ -322,10 +322,10 @@ When responding, consider all available information, including projects, work ex
 
 """
 
-options_template = """The following is a resume and an answered question about the resume, the answer is one of the options.
+options_template = """The following is a resume and a question about the resume, the answer is one of the options.
 
 ## Rules
-- Never choose the default/placeholder option, examples are: 'Select an option', 'None', 'Choose from the options below', etc.
+- Never choose the default/placeholder option, examples are: 'Select an option', 'None', 'Choose from the options below', 'My option', 'Your own option', 'Your own answer', 'Свой вариант', 'Свой ответ', etc.
 - The answer must be one of the options.
 - The answer must exclusively contain one of the options.
 
@@ -334,6 +334,34 @@ My resume: I'm a software engineer with 10 years of experience on swift, python,
 Question: How many years of experience do you have on python?
 Options: [1-2, 3-5, 6-10, 10+]
 10+
+
+-----
+
+## My resume:
+```
+{resume}
+```
+
+## Question:
+{question}
+
+## Options:
+{options}
+
+## """
+
+many_options_template = """The following is a resume and a question about the resume, the answer is one or more of the options.
+
+## Rules
+- Never choose the default/placeholder option, examples are: 'Select an option', 'None', 'Choose from the options below', 'My option', 'Your own option', 'Your own answer', 'Свой вариант', 'Свой ответ', etc.
+- The answer can be one or more options.
+- Return answers as a comma separated string.
+
+## Example
+My resume: I'm a software engineer with 10 years of experience on swift, python, C, C++.
+Question: What programming languages do you know?
+Options: [python, C, rust, swift, ruby, C++, C#, go]
+python, C, swift, C++
 
 -----
 
@@ -501,6 +529,7 @@ coverletter_template = """
 - Не упоминай имя компании в сопроводительном письме, в зависимости от описания вакансии, пиши 'ваша компания', 'ваша организация' или 'ваш банк'.
 - Если обнаружишь какие-либо вопросы в описании вакансии - ответь на них в сопроводительном письме, после основного текста, используя информацию из резюме.
 - Если в описании вакансии требуют указать в сопроводительном письме какие-либо слова - напиши их после основного текста (но только если такое требование действительно есть в тексте вакансии!).
+- Не указывай никаких ссылок, в том числе на Github, LinkedIn и т.д.
 - В конце указывай свой Telegram для связи (или телефон, но только в случае отсутствия Telegram!)
 
 ## Пример 1:

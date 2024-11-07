@@ -603,6 +603,44 @@ class GPTAnswerer:
         logger.debug(f"Ответ на вопрос: {output}")
         return output
     
+    def select_one_answer_from_options(self, question: str, options: list[str]) -> str:
+        """
+        Спрашиваем у LLM ответ на вопрос с несколькими 
+        вариантами ответа. Должен вернуть только один.
+        """
+        logger.debug(f"Отвечаем на вопрос c выбором одного ответа: {question}")
+        func_template = self._preprocess_template_string(
+            strings.options_template)
+        prompt = ChatPromptTemplate.from_template(func_template)
+        chain = prompt | self.llm_cheap | StrOutputParser()
+        best_option = chain.invoke(
+            {"resume": self.resume, "question": question, "options": options})
+        logger.debug(f"Ответ от LLM: {best_option}")
+        # best_option = self.find_best_match(output_str, options)
+        logger.debug(f"Лучший вариант ответа найден: {best_option}")
+        return best_option
+    
+    def select_many_answers_from_options(self, question: str, options: list[str]) -> List[str]:
+        """
+        Спрашиваем у LLM ответ на вопрос с одним или несколькими 
+        вариантами ответа. Может вернуть больше одного.
+        """
+        logger.debug(f"Отвечаем на вопрос c выбором одного или нескольких ответа: {question}")
+        func_template = self._preprocess_template_string(
+            strings.many_options_template)
+        prompt = ChatPromptTemplate.from_template(func_template)
+        chain = prompt | self.llm_cheap | StrOutputParser()
+        output_str = chain.invoke(
+            {"resume": self.resume, "question": question, "options": options})
+        logger.debug(f"Ответ от LLM: {output_str}")
+        best_options = output_str.split(",")
+        # best_options = []
+        # for output in outputs:
+        #     best_option = self.find_best_match(output, options)
+        #     best_options.append(best_option)
+        logger.debug(f"Лучшие варианты ответа: {best_options}")
+        return best_options
+    
     def job_is_interesting(self) -> bool|None:
         """
         Спрашиваем у LLM, может ли быть интересна 
