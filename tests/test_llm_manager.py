@@ -67,7 +67,7 @@ def test_gpt_answerer_question_answering(mock_answer, gpt_answerer):
     mock_answer.assert_called_once_with(question)
     assert result == "I am available to start immediately."
 
-def test_job_is_interesting_yes(mock_llm_logger, gpt_answerer):
+def test_job_is_interesting_yes(gpt_answerer):
     # Mock the output of the job_is_interesting chain to return "yes"
     gpt_answerer.resume = {"skills": ["Python", "Machine Learning"], "interests": ["AI Research"]}
     gpt_answerer.job = {"description": "Looking for a Python developer interested in AI"}
@@ -88,7 +88,7 @@ def test_job_is_interesting_yes(mock_llm_logger, gpt_answerer):
         "interests": gpt_answerer.resume["interests"]
     })
 
-def test_job_is_interesting_no(mock_llm_logger, gpt_answerer):
+def test_job_is_interesting_no(gpt_answerer):
     # Mock the output of the job_is_interesting chain to return "no"
     gpt_answerer.resume = {"skills": ["Python", "Data Analysis"], "interests": ["Data Science"]}
     gpt_answerer.job = {"description": "Looking for a C++ developer with interest in embedded systems"}
@@ -108,3 +108,23 @@ def test_job_is_interesting_no(mock_llm_logger, gpt_answerer):
         "skills": gpt_answerer.resume["skills"],
         "interests": gpt_answerer.resume["interests"]
     })
+
+def test_find_best_match(gpt_answerer):
+    text = "Horse"
+    options = ["Home", "Hound", "House", "Hill"]
+
+    result = gpt_answerer.find_best_match(text, options)
+    assert result == "House"
+
+
+@patch("src.llm.llm_manager.StrOutputParser")
+@patch("src.llm.llm_manager.ChatPromptTemplate.from_template")
+@patch("src.llm.llm_manager.GPTAnswerer.find_best_match", return_value="House")
+def test_select_one_answer_from_options(mock_str_output_parser, mock_chat_prompt_template, mock_best_match, gpt_answerer):
+    gpt_answerer.resume = Mock()
+    gpt_answerer.llm_cheap = Mock()
+
+    question = "Test"
+    options = ["Home", "Hound", "House", "Hill"]
+
+    assert gpt_answerer.select_one_answer_from_options(question, options) == options[2]

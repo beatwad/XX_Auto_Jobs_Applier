@@ -19,6 +19,7 @@ def job_manager():
         }
     _job_manager.set_parameters(params)
     _job_manager.gpt_answerer = Mock()
+    _job_manager._pause = Mock()
     _job_manager.driver.find_elements.return_value = [MagicMock(location={"y": 0}), MagicMock(location={"y": 0}, text="test_job")]
     _job_manager.driver.find_element.return_value = MagicMock()
     _job_manager.driver.execute_script.return_value = 0
@@ -147,12 +148,70 @@ def test_handle_response_popup(job_manager):
 
 
 def test_find_and_handle_questions(job_manager):
-    job_manager._find_and_handle_textbox_question = Mock(return_value=(True, ""))
+    job_manager._handle_question = Mock(return_value=(True, ""))
 
     result, _ = job_manager._find_and_handle_questions()
 
     assert result is True
-    job_manager._find_and_handle_textbox_question.assert_called()
+    job_manager._handle_question.assert_called()
+
+
+def test_handle_question(job_manager):
+    question = MagicMock(spec=WebElement, text="Test Question")
+    question.find_elements.return_value = ["test"]
+    job_manager._handle_radio_question = Mock(return_value=(True, ""))
+
+    result, _ = job_manager._find_and_handle_questions()
+
+    assert result is True
+    job_manager._handle_radio_question.assert_called()
+
+
+def test_handle_radio_question(job_manager):
+    job_manager._scroll_slow = Mock()
+    job_manager.gpt_answerer.select_one_answer_from_options.return_value = "Field2"
+    question = MagicMock(spec=WebElement, text="Test Question")
+    question.find_elements.return_value = ["test"]
+    radio_fields = [
+        MagicMock(spec=WebElement, text="Field1"),
+        MagicMock(spec=WebElement, text="Field2"),
+        ]
+
+    result, _ = job_manager._handle_radio_question(question, radio_fields)
+
+    assert result is True
+    job_manager.gpt_answerer.select_one_answer_from_options.assert_called()
+
+
+def test_handle_checkbox_question(job_manager):
+    job_manager._scroll_slow = Mock()
+    job_manager.gpt_answerer.select_many_answers_from_options.return_value = ["Field2", "Field3"]
+    question = MagicMock(spec=WebElement, text="Test Question")
+    question.find_elements.return_value = ["test"]
+    radio_fields = [
+        MagicMock(spec=WebElement, text="Field1"),
+        MagicMock(spec=WebElement, text="Field2"),
+        ]
+
+    result, _ = job_manager._handle_checkbox_question(question, radio_fields)
+
+    assert result is True
+    job_manager.gpt_answerer.select_many_answers_from_options.assert_called()
+
+
+@patch("builtins.open")
+def test_handle_textbox_question(mock_open, job_manager):
+    job_manager._scroll_slow = Mock()
+    job_manager._enter_text = Mock()
+    job_manager.gpt_answerer.answer_question_textual_wide_range.return_value = "Test Answer"
+    question = MagicMock(spec=WebElement, text="Test Question")
+    question.find_elements.return_value = [Mock()]
+    text_field = MagicMock(spec=WebElement, text="Field1")
+
+    result, _ = job_manager._handle_textbox_question(question, text_field)
+
+    assert result is True
+    job_manager._enter_text.assert_called()
 
 
 def test_write_and_send_cover_letter(job_manager):
@@ -163,20 +222,6 @@ def test_write_and_send_cover_letter(job_manager):
 
     job_manager._scroll_slow.assert_called()
     job_manager._enter_text.assert_called_with(job_manager.driver.find_elements.return_value[0], "Sample Cover Letter")
-
-
-@patch("builtins.open")
-def test_find_and_handle_textbox_question(mock_open, job_manager):
-    job_manager._scroll_slow = Mock()
-    job_manager._enter_text = Mock()
-    job_manager.gpt_answerer.answer_question_textual_wide_range.return_value = "Test Answer"
-    question = MagicMock(spec=WebElement, text="Test Question")
-    question.find_elements.return_value = [Mock()]
-
-    result, _ = job_manager._find_and_handle_textbox_question(question)
-
-    assert result is True
-    job_manager._enter_text.assert_called()
 
 
 def test_is_blacklisted(job_manager):

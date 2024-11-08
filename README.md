@@ -4,6 +4,8 @@
 
 # XX Auto Jobs Applier
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/beatwad/XX_Auto_Jobs_Applier/blob/master/LICENSE) [![contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/beatwad/XX_Auto_Jobs_Applier/issues)
+
 **🤖🔍 Ваш ИИ помощник в поиске работы. Ищите и откликайтесь только на интересные вам вакансии в полностью автоматическом режиме и найдите работу своей мечты быстрее.**
 
 </div>

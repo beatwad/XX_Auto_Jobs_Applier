@@ -455,7 +455,7 @@ class JobManager:
         if questions:
             logger.debug("Нашли вопрос(ы).")
             for question in questions:
-                answer, answer_text = self.handle_question(question)
+                answer, answer_text = self._handle_question(question)
                 if not answer:
                     logger.debug("Прерываем отклик на вакансию.")
                     return False, answer_text
@@ -534,7 +534,7 @@ class JobManager:
                         break
                 self.driver.switch_to.default_content()
                 
-    def handle_question(self, question: WebElement) -> Tuple[bool, str]:
+    def _handle_question(self, question: WebElement) -> Tuple[bool, str]:
         """
         Метод для определения типа вопроса и выбора соответствующего 
         подметода для ответа на данный вопрос
@@ -555,7 +555,7 @@ class JobManager:
                     if text_field.get_attribute("class").startswith("bloko-textarea"):
                         return self._handle_textbox_question(question, text_field)
                     
-        output = f"Не найдено поля для ввода текста или варианта ответа на вопрос {question.text}"
+        output = f"Не найдено поля для ввода текста или вариантов ответа на вопрос {question.text}"
         logger.warning(output)
         return False, output
     
