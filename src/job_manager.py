@@ -564,12 +564,11 @@ class JobManager:
         self._scroll_slow(question)
         question_text = question.text
         logger.debug(f"Нашли вопрос c выбором одного ответа: {question_text}")
-        question_text = question_text.lower().strip()
         options = [radio_field.text for radio_field in radio_fields]
         answer = self.gpt_answerer.select_one_answer_from_options(question_text, options)
         # Находим и отмечаем подходящий вариант ответа
         for radio_field in radio_fields:
-            if self._sanitize_text(radio_field.text) == self._sanitize_text(answer):
+            if radio_field.text == answer:
                 radio_field.click()
                 self._pause()
                 return True, ""
@@ -584,14 +583,12 @@ class JobManager:
         self._scroll_slow(question)
         question_text = question.text
         logger.debug(f"Нашли вопрос c выбором множества ответов: {question_text}")
-        question_text = question_text.lower().strip()
         options = [checkbox_field.text for checkbox_field in checkbox_fields]
         answers = self.gpt_answerer.select_many_answers_from_options(question_text, options)
-        answers = [self._sanitize_text(answer) for answer in answers]
         # Находим и отмечаем все подходящие варианты ответа
         result = False
         for checkbox_field in checkbox_fields:
-            if self._sanitize_text(checkbox_field.text) in answers:
+            if checkbox_field.text in answers:
                 checkbox_field.click()
                 result = True
                 self._pause()
@@ -609,7 +606,6 @@ class JobManager:
         self._scroll_slow(question)
         question_text = question.text
         logger.debug(f"Нашли текстовый вопрос: {question_text}")
-        question_text = question_text.lower().strip()
 
         # поискать ответ в файле сохраненных предыдущих ответов
         existing_answer = None
@@ -626,7 +622,7 @@ class JobManager:
         else:
             answer = self.gpt_answerer.answer_question_textual_wide_range(question_text)
             if answer.startswith("Вопрос не принадлежит ни к одной из известных тем, возвращаем пустой ответ."):
-                output = f"Не смогли определить тип вопроса: {question.text}"
+                output = f"Не смогли определить тип вопроса: {question_text}"
                 logger.warning(output)
                 return False, output
             logger.debug(f"Сгенерирован ответ: {answer}")

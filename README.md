@@ -261,6 +261,7 @@ XX_Auto_Jobs_Applier — передовой автоматизированный
 
 - `experience_details:` Cколько лет общего опыта в индустрии + где работали и чего добились
     - **total_experience**: Сколько лет общего опыта
+    - **grade**: Ваш уровень (intern, junior, middle, senior, team lead и т.д.)
     
     - Список мест работы:
       - **position**: На какой позиции работали

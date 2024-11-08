@@ -613,10 +613,10 @@ class GPTAnswerer:
             strings.options_template)
         prompt = ChatPromptTemplate.from_template(func_template)
         chain = prompt | self.llm_cheap | StrOutputParser()
-        best_option = chain.invoke(
+        output_str = chain.invoke(
             {"resume": self.resume, "question": question, "options": options})
-        logger.debug(f"Ответ от LLM: {best_option}")
-        # best_option = self.find_best_match(output_str, options)
+        logger.debug(f"Ответ от LLM: {output_str}")
+        best_option = self.find_best_match(output_str, options)
         logger.debug(f"Лучший вариант ответа найден: {best_option}")
         return best_option
     
@@ -633,11 +633,14 @@ class GPTAnswerer:
         output_str = chain.invoke(
             {"resume": self.resume, "question": question, "options": options})
         logger.debug(f"Ответ от LLM: {output_str}")
-        best_options = output_str.split(",")
-        # best_options = []
-        # for output in outputs:
-        #     best_option = self.find_best_match(output, options)
-        #     best_options.append(best_option)
+        # на случай если LLM вернет python-like список
+        output_str = output_str.replace("[", "").replace("]", "")
+        output_str = output_str.replace("'", "").replace("'", "")
+        outputs = output_str.split(";")
+        best_options = []
+        for output in outputs:
+            best_option = self.find_best_match(output, options)
+            best_options.append(best_option)
         logger.debug(f"Лучшие варианты ответа: {best_options}")
         return best_options
     

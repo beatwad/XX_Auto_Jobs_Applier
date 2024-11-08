@@ -355,13 +355,13 @@ many_options_template = """The following is a resume and a question about the re
 ## Rules
 - Never choose the default/placeholder option, examples are: 'Select an option', 'None', 'Choose from the options below', 'My option', 'Your own option', 'Your own answer', 'Свой вариант', 'Свой ответ', etc.
 - The answer can be one or more options.
-- Return answers as a comma separated string.
+- Return answers as a semicolon separated string.
 
 ## Example
 My resume: I'm a software engineer with 10 years of experience on swift, python, C, C++.
 Question: What programming languages do you know?
 Options: [python, C, rust, swift, ruby, C++, C#, go]
-python, C, swift, C++
+python; C; swift; C++
 
 -----
 
