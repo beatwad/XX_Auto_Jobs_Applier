@@ -42,6 +42,7 @@ education_details:  # какое образование получал(а), ка
 
 experience_details:  # сколько лет общего опыта в индустрии + где работал(а)
   - total_experience: 4 года
+  - grade: senior
   
   - position: Python разработчик
     company: ООО «Horns & Hooves»
