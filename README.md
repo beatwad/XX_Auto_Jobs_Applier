@@ -132,9 +132,9 @@ XX_Auto_Jobs_Applier — передовой автоматизированный
 
 5. Копируем значения ключей Client ID и Client Secret
 
-3. Использовать Client ID и Client Secret для получения формирования ссылки для получения Auth Code
+6. Используем Client ID и Client Secret для создания ссылки для получения Auth Code
 
-Вот примерный код для получения
+Вот примерный код для получения:
 
 ```python
 client_id = "your_client_id" # ваш Client Id 
@@ -143,11 +143,11 @@ redirect_uri = "https://localhost" # Ваш эндпоинт на домене, 
 
 url = f"https://hh.ru/oauth/authorize?response_type=code&client_id={client_id}&redirect_uri={redirect_uri}"
 ```
-4. Перейдите по получивишейся ссылке и одобрите авторизацию в hh.ru, после редиректа в поле адреса увидите строку вида http://localhost/?code=auth_code; скопируйте значение auth_code 
+7. Переходим по получивишейся ссылке и одобряем авторизацию в hh.ru, после редиректа в поле адреса увидите строку вида http://localhost/?code=auth_code; скопируйте значение auth_code 
 
-5. Получение Access Token и Refresh Token
+8. Далее при помощи полученного Auth code получаем Access Token и Refresh Token
 
-Код для получения указанных токенов
+Код для получения указанных токенов:
 
 ```python
 import requests
@@ -173,11 +173,11 @@ if "access_token" in tokens and "refresh_token" in tokens:
 else:
         raise ValueError(f"Ошибка при получении токенов доступа: {tokens}")
 ```
-Готовый код для получения токенов можно найти в файле `notebooks/get_tokens.ipynb`
-
-После этого Access Token можно использовать для доступа к API hh.ru, а Refresh Token - для обновления Access Token в случае его истечения (время жизни Access Token - 2 недели).
+Полный код для получения всех вышеуказанных токенов можно найти в файле `notebooks/get_tokens.ipynb`
 
 Задаем их в соответствующих полях файла `data_folder/secrets/secrets.yaml`
+
+Если использовать приложение регулярно, то об этих токенах можно забыть, приложение будет обновлять их самостоятельно. Если же не пользоваться приложением несколько недель, то весь процесс получения токенов (за исключением регистрации приложения, разумеется) придется повторить заново. 
 
 ## Установка
 
@@ -420,51 +420,6 @@ else:
 
    Для остановки приложения введите комбинацию клавиш Ctrl + C в терминале.
 
-
-## Docker
-
-  В проекте есть Dockerfile, из него можно построить свой образ Docker и работать уже с ним.
-
-  ### Создание Docker image
-
-  В корневой директории проекта запустить команду
-  ```
-  docker build --build-arg GITHUB_TOKEN=<токен_для_доступа_к_github> -t beatwad/xx .
-  ```
-
-  ### Запуск Docker container
-
-  В корневой директории проекта запустить команду
-  ```
-  docker run --rm  --name xxr -it beatwad/xx sh
-  ```
-  Затем в новом терминале скопировать в контейнер нужные для работы файлы
-  ```
-  docker cp data_folder/search_config/search_config.yaml xxr:/XX_Auto_Jobs_Applier/data_folder/search_config/search_config.yaml
-  docker cp data_folder/secrets/secrets.yaml xxr:/XX_Auto_Jobs_Applier/data_folder/secrets/secrets.yaml
-  ```
-  Затем вернуться в контейнер и внутри него набрать
-  ```
-  python main.py
-  ```
-
-## Kubernetes
-
-  Есть возможность запустить кластер на K8S, перед этим нужно добавить реквизиты для доступа в DockerHub
-  (судя по всему, это обязательно только для первого созданного кластера, дальше сохраняется):
-  ```
-  kubectl create secret docker-registry dockerhub-secret \
-    --docker-server=https://index.docker.io/v1/ \
-    --docker-username=docker \
-    --docker-password="password" \
-    --docker-email=beatwad@gmail.com \
-    -n default
-  ```
-
-  Добавить в K8S файл с секретами:
-  ```
-  kubectl create secret generic pod-secret --from-file=data_folder/secrets/secrets.yaml
-  ```
 
 ## Проблемы
 
