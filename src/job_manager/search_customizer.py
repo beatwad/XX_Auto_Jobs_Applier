@@ -20,7 +20,7 @@ class SearchCustomizer:
         """Установка параметрок поиска"""
         logger.info("Установка параметров SearchCustomizer")
         # загрузка необязательных параметров
-        self.search_params["text"] = parameters.get("keywords", "")
+        self.search_params["text"] = parameters.get("keywords") or ""
         self.search_params["search_field"] = self._get_search_field_ids(parameters)
         self.search_params["experience"] = self._get_experience_id(parameters)
         self.search_params["employment"] = self._get_employment_ids(parameters)
@@ -29,10 +29,10 @@ class SearchCustomizer:
         self.search_params["metro"] = self._get_metro_ids(parameters)
         self.search_params["professional_role"] = self._get_professional_role_id(parameters)
         self.search_params["industry"] = self._get_industry_ids(parameters)
-        self.search_params["salary"] = parameters.get("salary", 0)
+        self.search_params["salary"] = parameters.get("salary") or 0
         self.search_params["currency"] = self._get_currency_id(parameters)
         self.search_params["label"] = self._get_vacancy_label_ids(parameters)
-        self.search_params["only_with_salary"] = parameters.get("only_with_salary", False)
+        self.search_params["only_with_salary"] = parameters.get("only_with_salary") or False
         self.search_params["period"] = self._get_period(parameters)
         self.search_params["order_by"] = self._get_order_by_id(parameters)
         self.search_params["part_time"] = self._get_part_time_ids(parameters)
@@ -44,7 +44,7 @@ class SearchCustomizer:
 
     def _get_search_field_ids(self, parameters: Dict[str, Any]) -> List[str]:
         """Получить id настроек области поиска"""
-        search_field = parameters.get("search_field", {})
+        search_field = parameters.get("search_field") or {}
         search_field_ids = []
         for key, value in search_field.items():
             if value is True:
@@ -53,7 +53,7 @@ class SearchCustomizer:
 
     def _get_experience_id(self, parameters: Dict[str, Any]) -> Union[str, List[str]]:
         """Получить id настройки опыта"""
-        experience = parameters.get("experience", {})
+        experience = parameters.get("experience") or {}
         experience_ids = []
         for key, value in experience.items():
             if value is True:
@@ -66,7 +66,7 @@ class SearchCustomizer:
 
     def _get_employment_ids(self, parameters: Dict[str, Any]) -> List[str]:
         """Получить id настроек занятосли"""
-        employment = parameters.get("employment", {})
+        employment = parameters.get("employment") or {}
         employment_ids = []
         for key, value in employment.items():
             if value is True:
@@ -75,7 +75,7 @@ class SearchCustomizer:
 
     def _get_schedule_ids(self, parameters: Dict[str, Any]) -> None:
         """Получить id настроек графика работы"""
-        schedule = parameters.get("schedule", {})
+        schedule = parameters.get("schedule") or {}
         schedule_ids = []
         for key, value in schedule.items():
             if value is True:
@@ -84,7 +84,7 @@ class SearchCustomizer:
 
     def _get_area_ids(self, parameters: Dict[str, Any]) -> List[str]:
         """Получаем id регионов"""
-        regions = parameters.get("area", "")
+        regions = parameters.get("area") or ""
         if not regions:
             return []
         regions = regions.split(";")
@@ -125,7 +125,7 @@ class SearchCustomizer:
 
     def _get_metro_ids(self, parameters: Dict[str, Any]) -> List[str]:
         """Получаем id станций метро"""
-        metro = parameters.get("metro", "")
+        metro = parameters.get("metro") or ""
         if not metro:
             return []
         metro = metro.split(",")
@@ -153,7 +153,7 @@ class SearchCustomizer:
 
     def _get_professional_role_id(self, parameters: Dict[str, Any]) -> str:
         """Получаем id профессиональной области"""
-        professional_role = parameters.get("professional_role", "")
+        professional_role = parameters.get("professional_role") or ""
         if not professional_role:
             return ""
         professional_role = professional_role.lower()
@@ -173,7 +173,7 @@ class SearchCustomizer:
 
     def _get_industry_ids(self, parameters: Dict[str, Any]) -> List[str]:
         """Получаем id индустрии"""
-        industries = parameters.get("industry", "")
+        industries = parameters.get("industry") or ""
         if not industries:
             return []
 
@@ -193,7 +193,7 @@ class SearchCustomizer:
 
     def _get_currency_id(self, parameters: Dict[str, Any]) -> str:
         "Получаем id валюты"
-        currency = parameters.get("currency", {})
+        currency = parameters.get("currency") or {}
         for key, value in currency.items():
             if value is True:
                 return key
@@ -201,7 +201,7 @@ class SearchCustomizer:
 
     def _get_vacancy_label_ids(self, parameters: Dict[str, Any]) -> List[str]:
         """Получить id настроек меток вакансий"""
-        vacancy_labels = parameters.get("vacancy_label", {})
+        vacancy_labels = parameters.get("vacancy_label") or {}
         vacancy_label_ids = []
         for key, value in vacancy_labels.items():
             if value is True:
@@ -210,7 +210,7 @@ class SearchCustomizer:
 
     def _get_period(self, parameters: Dict[str, Any]) -> int:
         """Получить значение количества дней, в пределах которых производится поиск по вакансиям"""
-        period = parameters.get("period", {})
+        period = parameters.get("period") or {}
         for key, value in period.items():
             if key == "all_time" and value is True:
                 return 0
@@ -226,14 +226,14 @@ class SearchCustomizer:
 
     def _get_order_by_id(self, parameters: Dict[str, Any]) -> str:
         """Получить id сортировки списка вакансий"""
-        order_by = parameters.get("order_by", {})
+        order_by = parameters.get("order_by") or {}
         for key, value in order_by.items():
             if value is True:
                 return key
 
     def _get_part_time_ids(self, parameters: Dict[str, Any]) -> List[str]:
         """Получить id настроек вакансий для подработки"""
-        part_time = parameters.get("part_time", {})
+        part_time = parameters.get("part_time") or {}
         part_timel_ids = []
         for key, value in part_time.items():
             if value is True:

@@ -12,7 +12,6 @@ selenium==4.9.1
 webdriver-manager==4.0.2
 telethon==1.39.0
 python-telegram-bot==21.9
-pyvirtualdisplay==3.0
 pytest==8.3.4
 pytest-asyncio==0.26.0
 pytest-cov==6.0.0

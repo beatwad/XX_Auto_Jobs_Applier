@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import yaml
-from pyvirtualdisplay import Display
 from selenium import webdriver
 from selenium.common.exceptions import ElementNotInteractableException
 from selenium.webdriver.chrome.service import Service as ChromeService
@@ -484,9 +483,6 @@ class JobApplier:
 
     def init_driver(self) -> webdriver.Chrome:
         """Инициализировать Selenium driver"""
-        # Start the virtual display
-        display = Display(visible=0, size=(1920, 1080))
-        display.start()
         try:
             options = chrome_browser_options()
             service = ChromeService(ChromeDriverManager().install())

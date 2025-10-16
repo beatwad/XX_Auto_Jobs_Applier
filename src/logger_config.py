@@ -4,14 +4,9 @@ import sys
 from loguru import logger
 
 from src.app_config import MINIMUM_LOG_LEVEL
+from src.constants import LOGS_DIR
 from src.telegram.telegram_error_handler import AsyncTelegramSink
 
-# Не выводить stderr
-sys.stderr = open(os.devnull, "w")
-
-# Create logs directory if it doesn't exist
-logs_dir = "logs"
-os.makedirs(logs_dir, exist_ok=True)
 
 logger.remove()
 
@@ -20,11 +15,10 @@ if MINIMUM_LOG_LEVEL in ["DEBUG", "TRACE", "INFO", "WARNING", "ERROR", "CRITICAL
 else:
     minimum_log_level = "DEBUG"
 
-# Terminal output without tracebacks
-logger.add(sys.stderr, level=minimum_log_level, backtrace=False, diagnose=False)
+# Вывод в терминал без tracebacks
 logger.add(sys.stdout, level=minimum_log_level, backtrace=False, diagnose=False)
 
-# Добавить канал логирования (Telegram чат)
+# Добавляем канал логирования (Telegram чат)
 logger.add(
     AsyncTelegramSink(
         max_retries=6,
@@ -38,10 +32,10 @@ logger.add(
 
 # Конфигурация логирования в файл
 logger.add(
-    os.path.join(logs_dir, "app.log"),
-    rotation="500 MB",  # Rotate when file reaches 500 MB
-    retention="10 days",  # Keep logs for 10 days
-    compression="zip",  # Compress rotated logs
+    os.path.join(LOGS_DIR, "app.log"),
+    rotation="10 MB",  # Очищаем файлы при достижении 10 MB
+    retention="10 days",  # Храним логи 10 дней
+    compression="zip",  # Сжимаем файлы
     level=minimum_log_level,
     backtrace=True,
     diagnose=True,
@@ -49,9 +43,9 @@ logger.add(
 
 # Конфигурация логирования ошибок в файл
 logger.add(
-    os.path.join(logs_dir, "error.log"),
-    rotation="100 MB",  # Rotate when file reaches 100 MB
-    retention="30 days",  # Keep error logs longer
+    os.path.join(LOGS_DIR, "error.log"),
+    rotation="5 MB",  # Очищаем файлы при достижении 10 MB
+    retention="30 days",  # Храним ошибки 30 дней
     compression="zip",
     level="ERROR",
     backtrace=True,
