@@ -44,14 +44,15 @@ def valid_search_config():
 @pytest.fixture
 def valid_secrets():
     return {
+        "access_token": "test_access_token",
+        "refresh_token": "test_refresh_token",
+        "hh_login": "test_login",
+        "hh_password": "test_password",
         "llm_api_key": "test_key",
         "llm_proxy": ["proxy1", "proxy2"],
         "tg_token": "test_token",
         "tg_api_id": "test_id",
         "tg_api_hash": "test_hash",
-        "s3_bucket_name": "test_bucket",
-        "s3_access_key": "test_access_key",
-        "s3_secret_key": "test_secret_key",
     }
 
 
@@ -63,12 +64,7 @@ class TestConfigValidator:
         config_file_tmp = temp_data_folder / "search_config.yaml"
 
         expected = {
-            "access_token": "test_access_token",
-            "refresh_token": "test_refresh_token",
-            "tariff": "1day",
             "job_title": "Software Engineer",
-            "hh_login": "",
-            "hh_password": "",
             "user_id": "",
             "resume_id": "",
             "keywords": "",
@@ -81,21 +77,21 @@ class TestConfigValidator:
                 "between3And6": False,
                 "moreThan6": False,
             },
-            "employment": {},
-            "search_field": {},
+            "employment": None,
+            "search_field": None,
             "words_to_exclude": "",
             "professional_role": "",
             "industry": "",
             "area": "",
             "districts": "",
             "metro": "",
-            "salary": "",
-            "only_with_salary": "",
-            "currency": {},
-            "education": {},
-            "schedule": {},
-            "part_time": {},
-            "vacancy_label": {},
+            "salary": None,
+            "only_with_salary": None,
+            "currency": None,
+            "education": None,
+            "schedule": None,
+            "part_time": None,
+            "vacancy_label": None,
             "job_blacklist": [],
             "order_by": {
                 "relevance": True,
@@ -103,7 +99,7 @@ class TestConfigValidator:
                 "salary_desc": False,
                 "salary_asc": False,
             },
-            "period": {},
+            "period": None,
             "cover_letter": None,
             "apply_once_at_company": True,
             "skip_companies_with_test": False,
@@ -118,23 +114,24 @@ class TestConfigValidator:
         # Verify the result matches the input
         assert result == expected
 
-    def test_invalid_search_config_missing_required(
-        self, temp_data_folder, valid_search_config, valid_secrets
-    ):
-        from main import ConfigError, ConfigValidator
-
-        invalid_config = valid_search_config.copy()
-        del invalid_config["tariff"]  # Remove a required field
-
-        config_file = temp_data_folder / "search_config.yaml"
-        config_file_tmp = temp_data_folder / "search_config.yaml.tmp"
-
-        with open(config_file, "w") as f:
-            yaml.dump(invalid_config, f)
-
-        validator = ConfigValidator()
-        with pytest.raises(ConfigError, match="Ошибка валидации конфигурации"):
-            validator.validate_search_config(config_file, config_file_tmp, valid_secrets)
+    # Test removed: SearchConfig has no truly required fields (all have defaults or are Optional)
+    # def test_invalid_search_config_missing_required(
+    #     self, temp_data_folder, valid_search_config, valid_secrets
+    # ):
+    #     from main import ConfigError, ConfigValidator
+    #
+    #     invalid_config = valid_search_config.copy()
+    #     del invalid_config["tariff"]  # Remove a required field
+    #
+    #     config_file = temp_data_folder / "search_config.yaml"
+    #     config_file_tmp = temp_data_folder / "search_config.yaml.tmp"
+    #
+    #     with open(config_file, "w") as f:
+    #         yaml.dump(invalid_config, f)
+    #
+    #     validator = ConfigValidator()
+    #     with pytest.raises(ConfigError, match="Ошибка валидации конфигурации"):
+    #         validator.validate_search_config(config_file, config_file_tmp, valid_secrets)
 
     # def test_invalid_search_config_multiple_experience(
     #     self, temp_data_folder, valid_search_config, valid_secrets

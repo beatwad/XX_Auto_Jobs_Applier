@@ -38,6 +38,7 @@ class ConfigValidator:
                         parameters[key] = None
 
             # Валидация параметров с помощью Pydantic
+            print(f"parameters: {parameters}")
             config = SearchConfig(**parameters)
             logger.debug("Проверка параметров завершена успешно.")
             return config.model_dump()

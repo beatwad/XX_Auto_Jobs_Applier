@@ -8,6 +8,7 @@ def api_parameters():
     return {
         "access_token": "test_access_token",
         "refresh_token": "test_refresh_token",
+        "user_id": "test_user",
     }
 
 
@@ -67,15 +68,18 @@ def test_refresh_token_success(mock_post, hh_api):
     mock_post.return_value = mock_response
 
     with (
-        patch("src.job_manager.api.load_yaml_file"),
-        patch("src.job_manager.api.update_search_config_s3"),
+        patch(
+            "src.job_manager.api.load_yaml_file",
+            return_value={"user_id": "test_user", "tg_token": "test_token"},
+        ),
+        patch("src.job_manager.api.save_yaml_file"),
     ):
         hh_api.refress_access_token()
 
         assert hh_api.access_token == "new_access_token"
         assert hh_api.refresh_token == "new_refresh_token"
-        assert hh_api.parameters["access_token"] == "new_access_token"
-        assert hh_api.parameters["refresh_token"] == "new_refresh_token"
+        assert hh_api.secrets["access_token"] == "new_access_token"
+        assert hh_api.secrets["refresh_token"] == "new_refresh_token"
 
 
 @patch("requests.post")
@@ -95,24 +99,11 @@ def test_get_user_id(mock_get, hh_api):
     mock_get.return_value = mock_response
 
     with (
-        patch("src.job_manager.api.load_yaml_file"),
-        patch("src.job_manager.api.update_search_config_s3"),
+        patch(
+            "src.job_manager.api.load_yaml_file",
+            return_value={"user_id": "test_user", "tg_token": "test_token"},
+        ),
+        patch("src.job_manager.api.save_yaml_file"),
     ):
         hh_api._get_user_id()
-        assert hh_api.parameters["user_id"] == "test_user_id"
-
-
-def test_remove_secret_info_from_parameters(hh_api):
-    hh_api.parameters = {
-        "access_token": "test_access_token",
-        "refresh_token": "test_refresh_token",
-        "user_id": "test_user_id",
-        "s3_bucket_name": "test_bucket",
-        "s3_access_key": "test_access_key",
-        "s3_secret_key": "test_secret_key",
-    }
-
-    cleaned_parameters = hh_api._remove_secret_info_from_parameters()
-    assert "s3_access_key" not in cleaned_parameters
-    assert "s3_secret_key" not in cleaned_parameters
-    assert "s3_bucket_name" not in cleaned_parameters
+        assert hh_api.secrets["user_id"] == "test_user_id"

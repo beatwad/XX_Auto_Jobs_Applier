@@ -75,10 +75,10 @@ class OrderBy(BaseModel):
     salary_asc: bool = False
 
     @model_validator(mode="after")
-    def validate_order(cls, values):
-        if sum(values.__dict__.values()) > 1:
+    def validate_order(self):
+        if sum(self.model_dump().values()) > 1:
             raise ValueError("Только одно значение настроек order by может быть True")
-        return values
+        return self
 
 
 class Period(BaseModel):
@@ -89,10 +89,10 @@ class Period(BaseModel):
     one_day: bool = False
 
     @model_validator(mode="after")
-    def validate_period(cls, values):
-        if sum(values.__dict__.values()) > 1:
+    def validate_period(self):
+        if sum(self.model_dump().values()) > 1:
             raise ValueError("Только одно значение настроек period может быть True")
-        return values
+        return self
 
 
 class SearchConfig(BaseModel):

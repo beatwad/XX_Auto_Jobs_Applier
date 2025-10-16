@@ -20,6 +20,18 @@ def mock_env_variables(monkeypatch):
     monkeypatch.setenv("MINIMUM_LOG_LEVEL", "INFO")
 
 
+@pytest.fixture(scope="session", autouse=True)
+def mock_telegram_sink_init():
+    """
+    Mock AsyncTelegramSink.__init__ at session level to handle module-level logger initialization.
+    """
+    with patch(
+        "src.telegram.telegram_error_handler.AsyncTelegramSink.__init__",
+        return_value=None,
+    ):
+        yield
+
+
 @pytest.fixture(autouse=True)
 def mock_telegram_sink(request):
     """

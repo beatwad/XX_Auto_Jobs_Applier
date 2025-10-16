@@ -81,7 +81,6 @@ def job_applier_with_params(job_applier, mock_gpt_answerer):
         ),
         patch.object(job_applier, "_load_data_from_yaml", return_value={}),
         patch.object(job_applier, "_load_cache", return_value={}),
-        patch("src.job_manager.job_applier.create_s3_client", return_value=MagicMock()),
     ):
         job_applier.set_parameters(parameters)
         job_applier.set_gpt_answerer(mock_gpt_answerer)
@@ -113,7 +112,6 @@ def test_set_parameters(job_applier):
         ),
         patch.object(job_applier, "_load_data_from_yaml", return_value={}),
         patch.object(job_applier, "_load_cache", return_value={}),
-        patch("src.job_manager.job_applier.create_s3_client", return_value=MagicMock()),
     ):
         parameters = {
             "user_id": "test_user",
@@ -135,7 +133,6 @@ def test_set_parameters(job_applier):
         assert job_applier.user_id == "test_user"
         assert job_applier.hh_login == "test_login"
         assert job_applier.hh_password == "test_password"
-        assert job_applier.s3_bucket_name == "test_bucket"
         assert job_applier.fixed_cover_letter == "This is a fixed cover letter"
         assert job_applier.job_blacklist == ["blacklisted company"]
 
@@ -345,14 +342,12 @@ def test_save_and_load_data(job_applier_with_params):
     with (
         patch("builtins.open", mock_open()) as mock_file,
         patch("yaml.safe_dump") as mock_yaml_dump,
-        patch("src.job_manager.job_applier.save_s3_file") as mock_s3_save,
     ):
         job_applier_with_params._save_data_to_yaml(test_data, filename)
 
         # Check that file operations were called
         mock_file.assert_called_once()
         mock_yaml_dump.assert_called_once()
-        mock_s3_save.assert_called_once()
 
 
 def test_resume_improvement_recommendations(job_applier_with_params):
