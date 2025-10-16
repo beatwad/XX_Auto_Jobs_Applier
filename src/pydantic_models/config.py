@@ -98,8 +98,6 @@ class Period(BaseModel):
 class SearchConfig(BaseModel):
     # Optional fields
     job_title: Optional[str] = ""
-    hh_login: Optional[str] = ""
-    hh_password: Optional[str] = ""
     user_id: Optional[str] = ""
     resume_id: Optional[str] = ""
     keywords: Optional[str] = ""
@@ -132,11 +130,13 @@ class SearchConfig(BaseModel):
 class Secrets(BaseModel):
     access_token: str
     refresh_token: str
+    hh_login: Optional[str] = ""
+    hh_password: Optional[str] = ""
     llm_api_key: str
     llm_proxy: List[str]
     tg_token: str
-    tg_api_id: str
-    tg_api_hash: str
+    tg_api_id: Optional[str] = ""
+    tg_api_hash: Optional[str] = ""
 
     @field_validator("tg_api_id", mode="before")
     @classmethod
