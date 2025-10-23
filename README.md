@@ -87,7 +87,7 @@ XX_Auto_Jobs_Applier — передовой автоматизированный
 
 1. **Заявка**
 
-  Заполняем заявку на [dev.hh.ru/admin](https://dev.hh.ru/admin):
+  Заполняем заявку на [dev.hh.ru/admin](https://dev.hh.ru/admin). Вот пример:
 
     Название приложения:
     любое
