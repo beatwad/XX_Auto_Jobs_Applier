@@ -8,10 +8,10 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
-from src.constants import SECRETS_FILE, TG_CAPTCHA_TOPIC_ID, TG_CHAT_ID
+from src.constants import SECRETS_FILE
 from src.logger_config import logger
-from src.telegram.telegram_manager import load_secrets, process_captcha
-from src.utils.utils import pause
+from src.telegram.telegram_manager import process_captcha
+from src.utils.utils import load_yaml_file, pause
 
 
 class Authenticator:
@@ -135,7 +135,12 @@ class Authenticator:
         )
         if len(captcha_element) > 0:
             logger.info("Обнаружили капчу, отсылаем изображение в чат")
-        tg_token, tg_api_id, tg_api_hash = load_secrets(SECRETS_FILE)
+        secrets = load_yaml_file(SECRETS_FILE)
+        tg_token = secrets["tg_token"]
+        tg_api_id = secrets.get("tg_api_id")
+        tg_api_hash = secrets.get("tg_api_hash")
+        tg_chat_id = secrets["tg_chat_id"]
+        tg_captcha_topic_id = secrets["tg_captcha_topic_id"]
 
         while len(captcha_element) > 0:
             if (datetime.now() - dt_now).total_seconds() > 3600:
@@ -185,8 +190,8 @@ class Authenticator:
                         tg_token,
                         tg_api_id,
                         tg_api_hash,
-                        TG_CHAT_ID,
-                        TG_CAPTCHA_TOPIC_ID,
+                        tg_chat_id,
+                        tg_captcha_topic_id,
                         captcha_filename,
                         message,
                     )
@@ -197,8 +202,8 @@ class Authenticator:
                         tg_token,
                         tg_api_id,
                         tg_api_hash,
-                        TG_CHAT_ID,
-                        TG_CAPTCHA_TOPIC_ID,
+                        tg_chat_id,
+                        tg_captcha_topic_id,
                         captcha_filename,
                         message,
                         listen=True,

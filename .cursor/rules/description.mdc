@@ -1,0 +1,71 @@
+---
+alwaysApply: true
+---
+# XX Auto Jobs Applier
+
+## Project Overview
+**XX Auto Jobs Applier** is a sophisticated automated tool designed to streamline the job search and application process on **hh.ru**. Leveraging Artificial Intelligence (LLM), it automates finding relevant vacancies, evaluating their suitability based on user preferences, and applying with personalized cover letters and answers to screening questions.
+
+## Key Features
+- **Automated Job Search**: Scans hh.ru for vacancies matching specified criteria.
+- **AI-Powered Evaluation**: Uses LLMs (OpenAI, Gemini, etc.) to score vacancies on "interestingness" (1-100) based on user profile.
+- **Smart Applications**:
+  - Auto-generates personalized cover letters.
+  - Answers employer questions (multiple choice, checkboxes, text) using AI.
+  - Handles CAPTCHA via Telegram integration (sends screenshot to chat for user solution).
+- **Resume Management**:
+  - Can auto-raise resume in search results.
+  - Generates resume improvement recommendations.
+  - (Experimental) Creates tailored resumes for specific jobs (`RESUME_MODE`).
+- **Monitoring & Logging**:
+  - Comprehensive logging to files and Telegram.
+  - Tracks successful, skipped, and failed applications.
+  - Provides daily reports on application stats.
+- **Flexible Configuration**:
+  - `MONKEY_MODE`: Apply to everything.
+  - `COVER_LETTER_MODE`: Generate drafts without applying.
+  - `SKILL_STAT_MODE`: Analyze demand for skills without applying.
+
+## Tech Stack
+- **Language**: Python 3.12+
+- **Core Libraries**: 
+  - `requests` (HH.ru API interactions)
+  - `selenium` (Browser automation for complex flows like questions/auth)
+  - `pydantic` (Data validation)
+  - `pyyaml` (Configuration)
+- **AI Integration**: Supports OpenAI (GPT-4o), Google Gemini, etc.
+
+## Architecture
+- **Entry Point**: `main.py` - initializes configuration and starts the bot loop.
+- **Configuration**:
+  - `data_folder/secrets/secrets.yaml`: API keys, credentials, tokens.
+  - `data_folder/search_config/search_config.yaml`: Job search parameters (position, blacklist, etc.).
+  - `src/app_config.py`: Global app settings (modes, thresholds, logging levels).
+- **Modules** (`src/`):
+  - `job_manager/`: Core logic for API interaction, application flow, and resume scraping.
+    - `api.py`: Handles low-level API interactions with hh.ru, including token management and request rate limiting.
+    - `authenticator.py`: Manages authentication via Selenium, including handling login and password input.
+    - `bot_facade.py`: A high-level facade class that orchestrates the interaction between the resume scraper, search customizer, and job applier.
+    - `job_applier.py`: Contains the main logic for finding vacancies, applying to them, and handling different application scenarios (questions, tests).
+    - `resume_scraper.py`: Fetches and parses user's resume data from hh.ru to be used for personalized applications and resume generation.
+    - `search_customizer.py`: Converts high-level search parameters from configuration into specific API filters for hh.ru vacancy search.
+  - `llm/`: Interfaces with LLM providers and prompt management.
+    - `llm_manager.py`: Manages interactions with LLM providers (OpenAI, Gemini, etc.) for generating text and answering questions.
+    - `prompts.py`: Stores prompt templates used for various LLM tasks like cover letter generation and answering questionnaire questions.
+  - `telegram/`: Handles Telegram notifications and error reporting.
+    - `get_telegram_chat_and_topic_id.py`: A helper script to retrieve Telegram chat and topic IDs for configuration.
+    - `telegram_error_handler.py`: Implements an asynchronous error logging sink that sends error notifications to a specified Telegram topic.
+    - `telegram_manager.py`: Handles Telegram interactions, such as sending daily reports and managing CAPTCHA forwarding/solving.
+  - `resume_builder/`: Logic for generating and styling resumes.
+    - `config.py`: Configuration settings for the resume builder module.
+    - `manager_facade.py`: A facade for the resume building process, managing style selection and PDF generation.
+    - `resume_generator.py`: Generates the HTML content of the resume using templates and LLM-generated content.
+    - `style_manager.py`: Manages the loading and selection of CSS styles for resume generation.
+    - `template_base.py`: Contains the HTML templates for different sections of the resume (header, experience, education, etc.).
+    - `utils.py`: Utility functions for the resume builder, including HTML to PDF conversion helpers.
+
+## Usage Modes
+- **Standard**: Filters jobs by AI interest score (`JOB_IS_INTERESTING_THRESH`) and applies.
+- **Monkey Mode**: Applies to all found jobs ignoring AI filtering.
+- **Resume Mode**: Generates PDF resumes for jobs (no application).
+- **Cover Letter Mode**: Generates cover letters for review (no application).

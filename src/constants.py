@@ -38,12 +38,6 @@ DUMMY_PERSONAL_INFO_FEMALE = {
     "livejournal": "https://aristaniya93.livejournal.com",
 }
 
-# Адрес чата в Telegram и ID соответствующих тем для отправки
-TG_CHAT_ID = "@xx_feedback"
-TG_ERR_TOPIC_ID = 5
-TG_CAPTCHA_TOPIC_ID = 17
-TG_REPORT_TOPIC_ID = 344
-
 # Пути к файлам логов и настроек
 SECRETS_FILE = "data_folder/secrets/secrets.yaml"
 SEARCH_CONFIG_FILE = "data_folder/search_config/search_config.yaml"

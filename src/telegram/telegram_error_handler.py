@@ -13,9 +13,6 @@ from src.constants import (
     LOGS_DIR,
     SEARCH_CONFIG_FILE,
     SECRETS_FILE,
-    TG_CHAT_ID,
-    TG_ERR_TOPIC_ID,
-    TG_REPORT_TOPIC_ID,
 )
 from telegram import Bot
 from telegram.error import TelegramError
@@ -65,11 +62,12 @@ class AsyncTelegramSink:
         max_retries: int = 6,
         cooldown: int = 60,
     ):
-        telegram_bot_token = load_yaml_file(SECRETS_FILE)["tg_token"]
+        secrets = load_yaml_file(SECRETS_FILE)
+        telegram_bot_token = secrets["tg_token"]
         self.bot = Bot(token=telegram_bot_token)
-        self.chat_id = TG_CHAT_ID
-        self.err_topic_id = TG_ERR_TOPIC_ID
-        self.report_topic_id = TG_REPORT_TOPIC_ID
+        self.chat_id = secrets["tg_chat_id"]
+        self.err_topic_id = secrets["tg_err_topic_id"]
+        self.report_topic_id = secrets["tg_report_topic_id"]
         self.user_id = load_yaml_file(SEARCH_CONFIG_FILE).get("user_id", "-1")
         self.max_retries = max_retries
         self.cooldown = cooldown  # Seconds between identical error notifications

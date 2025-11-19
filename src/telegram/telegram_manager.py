@@ -3,7 +3,7 @@ from typing import Any, Dict, Union
 
 from telethon import TelegramClient
 
-from src.constants import SEARCH_CONFIG_FILE, SECRETS_FILE, TG_CHAT_ID, TG_REPORT_TOPIC_ID
+from src.constants import SEARCH_CONFIG_FILE, SECRETS_FILE
 from src.logger_config import logger
 from src.utils.utils import load_yaml_file
 from telegram import Bot
@@ -63,10 +63,10 @@ class TelegramReportSender:
     """
 
     def __init__(self):
-        telegram_bot_token = load_yaml_file(SECRETS_FILE)["tg_token"]
-        self.bot = Bot(token=telegram_bot_token)
-        self.chat_id = TG_CHAT_ID
-        self.report_topic_id = TG_REPORT_TOPIC_ID
+        secrets = load_yaml_file(SECRETS_FILE)
+        self.bot = Bot(token=secrets["tg_token"])
+        self.chat_id = secrets["tg_chat_id"]
+        self.report_topic_id = secrets["tg_report_topic_id"]
         self.user_id = load_yaml_file(SEARCH_CONFIG_FILE).get("user_id", "-1")
         self.message = ""
 
@@ -182,11 +182,15 @@ class TelegramReportSender:
 
 
 if __name__ == "__main__":
-    from src.constants import TG_CAPTCHA_TOPIC_ID
-
     message = "1747994625258759"
-    tg_token, tg_api_id, tg_api_hash = load_secrets("data_folder/secrets/secrets.yaml")
+    secrets = load_yaml_file("data_folder/secrets/secrets.yaml")
+    tg_token = secrets["tg_token"]
+    tg_api_id = secrets.get("tg_api_id")
+    tg_api_hash = secrets.get("tg_api_hash")
+    tg_chat_id = secrets["tg_chat_id"]
+    tg_captcha_topic_id = secrets["tg_captcha_topic_id"]
+
     text = asyncio.run(
-        receive_messages(tg_api_id, tg_api_hash, TG_CHAT_ID, TG_CAPTCHA_TOPIC_ID, message=message)
+        receive_messages(tg_api_id, tg_api_hash, tg_chat_id, tg_captcha_topic_id, message=message)
     )
     print(text)
