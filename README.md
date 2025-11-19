@@ -248,7 +248,7 @@ else:
 6. **Дополнительно (но не обязательно)**:
 
   - [Зарегистрируйте Telegram бот](https://core.telegram.org/bots/tutorial#getting-ready) и добавьте его API ключ в файл `secrets.yaml`, поле `tg_token`
-  - [Купите прокси](https://panel.proxyline.net/) и добавьте его в файл `secrets.yaml`, поле `llm_proxy`
+  - [Купите прокси](https://proxy6.net/ru/) и добавьте его в файл `secrets.yaml`, поле `llm_proxy`
   - [Получите Telegram API ID и Telegram API hash](https://core.telegram.org/api/obtaining_api_id) и добавьте их в файл `secrets.yaml`, в поля `tg_api_id` и `tg_api_hash` соответственно
 
 ## 🔧 Настройка
