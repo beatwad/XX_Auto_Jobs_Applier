@@ -6,13 +6,20 @@ import yaml
 from Levenshtein import distance
 
 from src.constants import DUMMY_PERSONAL_INFO_FEMALE, DUMMY_PERSONAL_INFO_MALE
+from src.job_manager.playwright_manager import PlaywrightJobManager
 from src.logger_config import logger
 from src.utils.json_to_readable import transform_resume_data
 
 
 class ResumeScraper:
-    def __init__(self, api: Any, job_title: str, resume_id: str, gpt_answerer_component: Any):
-        self.api = api
+    def __init__(
+        self,
+        manager: PlaywrightJobManager,
+        job_title: str,
+        resume_id: str,
+        gpt_answerer_component: Any,
+    ):
+        self.manager = manager
         self.job_title = job_title
         self.resume_info = {}
         self.resume_id = resume_id
@@ -21,14 +28,14 @@ class ResumeScraper:
         self.github_links = []
         self.gpt_answerer_component = gpt_answerer_component
 
-    def get_resume_parameters(self) -> Tuple[str, List[str]]:
+    async def get_resume_parameters(self) -> Tuple[str, List[str]]:
         """Получить ID нужного резюме"""
-        return self.get_id_of_selected_resume()
+        return await self.get_id_of_selected_resume()
 
-    def get_resume_info(self) -> Tuple[str, Dict[str, Any]]:
+    async def get_resume_info(self) -> Tuple[str, Dict[str, Any]]:
         """Собрать всю информацию о резюме пользователя"""
-        resume_info = self.get_selected_resume_info(self.resume_id)
-        self.raise_resume(self.resume_id, resume_info)
+        resume_info = await self.get_selected_resume_info(self.resume_id)
+        await self.raise_resume(self.resume_id, resume_info)
         self.get_personal_information(resume_info)
         self.get_work_preferences(resume_info)
         self.get_availability()
@@ -54,10 +61,10 @@ class ResumeScraper:
         # del self.resume_info["legal_authorization"]
         return self.resume_info, resume_readable
 
-    def get_id_of_selected_resume(self) -> Tuple[str, List[str]]:
+    async def get_id_of_selected_resume(self) -> Tuple[str, List[str]]:
         """Получить ID нужного резюме"""
-        url = "https://api.hh.ru/resumes/mine"
-        resumes = self.api.api_request(url)["items"]
+        response = await self.manager.get_my_resumes_from_browser()
+        resumes = response.get("items", [])
         # найти среди резюме наиболее схожее по названию с должностью, что указана в настройках
         resume_titles = [r["title"] if r["title"] else "" for r in resumes]
         # если не задана должность - возвращаем первое резюме
@@ -86,13 +93,12 @@ class ResumeScraper:
         self.resume_id = resume_id
         return resume_id, resume_titles
 
-    def get_selected_resume_info(self, resume_id: str) -> Dict[str, Any]:
+    async def get_selected_resume_info(self, resume_id: str) -> Dict[str, Any]:
         """Получить информацию о нужном резюме"""
-        url = f"https://api.hh.ru/resumes/{resume_id}"
-        resume_info = self.api.api_request(url)
+        resume_info = await self.manager.get_resume_content_from_browser(resume_id)
         return resume_info
 
-    def raise_resume(self, resume_id: str, resume_info: Dict[str, Any]) -> None:
+    async def raise_resume(self, resume_id: str, resume_info: Dict[str, Any]) -> None:
         """Поднять резюме в поиске"""
         # для начала проверяем, что резюме можно поднять
         # (прошло как минимум 4 часа с последнего подъема резюме)
@@ -100,13 +106,15 @@ class ResumeScraper:
         next_publish_at = resume_info["next_publish_at"]
         next_publish_at = datetime.fromisoformat(next_publish_at).replace(tzinfo=None)
         dt_now = datetime.now()
-        # если поднять можно - поднимаем
-        if dt_now >= next_publish_at:
-            url = f"https://api.hh.ru/resumes/{resume_id}/publish"
-            self.api.api_request(url, type_="post")
-            logger.info("Резюме успешно поднято")
+        # если поднять можно - поднимаем # TODO: replace with button click
+        # if dt_now >= next_publish_at:
+        #     url = f"https://api.hh.ru/resumes/{resume_id}/publish"
+        #     await self.manager.api_request(url, method="POST")
+        #     logger.info("Резюме успешно поднято")
 
     def get_personal_information(self, resume_info: dict[str, Any]) -> None:
+        # ... (rest of methods remain synchronous as they process data)
+        # Just copy-paste the rest from original file
         """Собрать персональную информацию"""
         self.resume_info["personal_information"] = {}
         # собрать информацию о ФИО
@@ -181,15 +189,15 @@ class ResumeScraper:
         if not resume_info["experience"]:
             return
         self.resume_info["previous_job_details"] = {}
-        self.resume_info["previous_job_details"][
-            "why_leave_previous_job"
-        ] = "На предыдущей работе не устраивало отсутствие карьерного роста и интересных задач."
-        self.resume_info["previous_job_details"][
-            "team"
-        ] = "Коллектив на предыдущей работе был дружный, не токсичный."
-        self.resume_info["previous_job_details"][
-            "boss"
-        ] = "Отношения с начальством были хорошие, токсичного поведения замечено не было."
+        self.resume_info["previous_job_details"]["why_leave_previous_job"] = (
+            "На предыдущей работе не устраивало отсутствие карьерного роста и интересных задач."
+        )
+        self.resume_info["previous_job_details"]["team"] = (
+            "Коллектив на предыдущей работе был дружный, не токсичный."
+        )
+        self.resume_info["previous_job_details"]["boss"] = (
+            "Отношения с начальством были хорошие, токсичного поведения замечено не было."
+        )
 
     def get_the_rest_resume_info(self, resume_info: dict[str, Any]) -> None:
         """Получить оставшуюся информацию непосредственно из резюме"""

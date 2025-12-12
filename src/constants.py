@@ -44,6 +44,7 @@ SEARCH_CONFIG_FILE = "data_folder/search_config/search_config.yaml"
 SEARCH_CONFIG_FILE_TMP = "data_folder/output/search_config_tmp.yaml"
 LAST_RUN_FILE = "data_folder/output/last_run.yaml"
 LOGS_DIR = "logs"
+BROWSER_STORAGE_STATE = "data_folder/browser_session/hh_state.json"
 
 # Словарь для подсчета стоимости запроса к модели
 PRICE_DICT = {

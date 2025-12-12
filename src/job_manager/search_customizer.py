@@ -1,13 +1,14 @@
 from typing import Any, Dict, List, Union
+import urllib.parse
 
+import requests
 from Levenshtein import distance
 
 from src.logger_config import logger
 
 
 class SearchCustomizer:
-    def __init__(self, api):
-        self.api = api
+    def __init__(self):
         self.resume = None
         self.search_params = {}
 
@@ -15,6 +16,25 @@ class SearchCustomizer:
         """Добавляем резюме для анализа."""
         self.resume_id = resume_id
         self.resume = resume
+
+    def get_search_url(self, page: int = 0) -> str:
+        """Generate search URL with parameters."""
+        base_url = "https://hh.ru/search/vacancy"
+        params = self.search_params.copy()
+
+        # Add pagination
+        params["page"] = page
+
+        # Helper to clean params (remove empty lists/None)
+        clean_params = {}
+        for k, v in params.items():
+            if v not in [None, "", [], {}]:
+                clean_params[k] = v
+
+        # Convert to query string
+        # doseq=True handles lists like area=['1', '2'] -> area=1&area=2
+        query_string = urllib.parse.urlencode(clean_params, doseq=True)
+        return f"{base_url}?{query_string}"
 
     def set_advanced_search_params(self, parameters: Dict[str, Any]) -> None:
         """Установка параметрок поиска"""
@@ -100,7 +120,11 @@ class SearchCustomizer:
         else:
             countries = ["россия"]
 
-        areas = self.api.api_request("https://api.hh.ru/areas")
+        try:
+            areas = requests.get("https://api.hh.ru/areas").json()
+        except Exception as e:
+            logger.error(f"Failed to fetch areas: {e}")
+            return []
 
         # Проходим по всем странам и городам и берем первый совпавший регион или город
         for region in regions:
@@ -132,7 +156,11 @@ class SearchCustomizer:
         metro = [station.lower().strip() for station in metro]
         metro_ids = []
 
-        cities = self.api.api_request("https://api.hh.ru/metro")
+        try:
+            cities = requests.get("https://api.hh.ru/metro").json()
+        except Exception as e:
+            logger.error(f"Failed to fetch metro: {e}")
+            return []
 
         # Проходим по всем странам и городам и берем первый совпавший регион или город
         for metro_station in metro:
@@ -159,7 +187,11 @@ class SearchCustomizer:
         professional_role = professional_role.lower()
         distances = []
 
-        categories = self.api.api_request("https://api.hh.ru/professional_roles")
+        try:
+            categories = requests.get("https://api.hh.ru/professional_roles").json()
+        except Exception as e:
+            logger.error(f"Failed to fetch professional_roles: {e}")
+            return ""
 
         for category in categories["categories"]:
             for role in category["roles"]:
@@ -167,6 +199,9 @@ class SearchCustomizer:
                 names = role["name"].lower().strip()
                 for name in names.split(","):
                     distances.append((id, name, distance(professional_role, name)))
+
+        if not distances:
+            return ""
 
         professional_role_id = min(distances, key=lambda x: x[-1])[0]
         return professional_role_id
@@ -181,7 +216,11 @@ class SearchCustomizer:
         industries = [industry.lower().strip() for industry in industries]
         industry_ids = []
 
-        categories = self.api.api_request("https://api.hh.ru/industries")
+        try:
+            categories = requests.get("https://api.hh.ru/industries").json()
+        except Exception as e:
+            logger.error(f"Failed to fetch industries: {e}")
+            return []
 
         for industry in industries:
             for category in categories:

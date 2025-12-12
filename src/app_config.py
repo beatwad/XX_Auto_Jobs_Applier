@@ -40,6 +40,11 @@ JOB_IS_INTERESTING_THRESH = 70
 """
 RAISE_RESUME = True
 
+"""
+Если эта переменная установлена в True, приложение будет работать в headless режиме.
+"""
+HEADLESS_MODE = False
+
 # Минимальное время, затрачиваемое на один отклик на вакансию
 MINIMUM_WAIT_TIME_SEC = 10
 

@@ -1,6 +1,3 @@
----
-alwaysApply: true
----
 # XX Auto Jobs Applier
 
 ## Project Overview
@@ -29,8 +26,8 @@ alwaysApply: true
 ## Tech Stack
 - **Language**: Python 3.12+
 - **Core Libraries**: 
-  - `requests` (HH.ru API interactions)
-  - `selenium` (Browser automation for complex flows like questions/auth)
+  - `playwright` (Browser automation for API interactions, application flow, and authentication)
+  - `httpx` / `requests` (HTTP clients)
   - `pydantic` (Data validation)
   - `pyyaml` (Configuration)
 - **AI Integration**: Supports OpenAI (GPT-4o), Google Gemini, etc.
@@ -43,8 +40,7 @@ alwaysApply: true
   - `src/app_config.py`: Global app settings (modes, thresholds, logging levels).
 - **Modules** (`src/`):
   - `job_manager/`: Core logic for API interaction, application flow, and resume scraping.
-    - `api.py`: Handles low-level API interactions with hh.ru, including token management and request rate limiting.
-    - `authenticator.py`: Manages authentication via Selenium, including handling login and password input.
+    - `playwright_manager.py`: Manages Playwright browser instance, authentication, and high-level interactions with hh.ru (replaces legacy API and Authenticator modules).
     - `bot_facade.py`: A high-level facade class that orchestrates the interaction between the resume scraper, search customizer, and job applier.
     - `job_applier.py`: Contains the main logic for finding vacancies, applying to them, and handling different application scenarios (questions, tests).
     - `resume_scraper.py`: Fetches and parses user's resume data from hh.ru to be used for personalized applications and resume generation.

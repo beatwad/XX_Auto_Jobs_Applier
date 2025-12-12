@@ -1,12 +1,12 @@
-import time
+import asyncio
 import traceback
 from pathlib import Path
 from typing import List
 
 from src.constants import SEARCH_CONFIG_FILE, SEARCH_CONFIG_FILE_TMP, SECRETS_FILE
-from src.job_manager.api import HeadHunterAPI
 from src.job_manager.bot_facade import BotFacade
 from src.job_manager.job_applier import JobApplier
+from src.job_manager.playwright_manager import PlaywrightJobManager
 from src.job_manager.resume_scraper import ResumeScraper
 from src.job_manager.search_customizer import SearchCustomizer
 from src.llm.llm_manager import GPTAnswerer
@@ -79,35 +79,42 @@ class FileManager:
         output_folder.mkdir(exist_ok=True)
 
 
-def create_and_run_bot(secrets: dict, parameters: dict, llm_api_key: str, llm_proxy: List[str]):
+async def create_and_run_bot(
+    secrets: dict, parameters: dict, llm_api_key: str, llm_proxy: List[str]
+):
     """Запустить бот"""
     if secrets.get("hh_login") and secrets.get("hh_password"):
         parameters["hh_login"] = secrets["hh_login"]
         parameters["hh_password"] = secrets["hh_password"]
 
     job_title = parameters.get("job_title")
-    api = HeadHunterAPI(secrets)
 
-    gpt_answerer_component = GPTAnswerer(llm_api_key, llm_proxy)
-    resume_component = ResumeScraper(
-        api, job_title, parameters.get("resume_id"), gpt_answerer_component
-    )
-    search_component = SearchCustomizer(api)
-    apply_component = JobApplier(api, resume_component, search_component)
+    manager = PlaywrightJobManager(secrets)
+    await manager.initialize()
 
-    bot = BotFacade(resume_component, search_component, apply_component)
-    bot.set_parameters(parameters)
-    if not apply_component.check_the_last_search_time():
-        logger.warning("Последний поиск был меньше суток назад, завершаем работу")
-        return
-    bot.set_resume()
-    bot.set_search_parameters(parameters)
-    bot.set_gpt_answerer(gpt_answerer_component, parameters)
-    # bot.set_resume_generator(resume_generator_manager, gpt_resume_genarator)
-    bot.start_apply()
+    try:
+        gpt_answerer_component = GPTAnswerer(llm_api_key, llm_proxy)
+        resume_component = ResumeScraper(
+            manager, job_title, parameters.get("resume_id"), gpt_answerer_component
+        )
+        search_component = SearchCustomizer()
+        apply_component = JobApplier(manager, resume_component, search_component)
+
+        bot = BotFacade(resume_component, search_component, apply_component)
+        await bot.set_parameters(parameters)
+        if not apply_component.check_the_last_search_time():
+            logger.warning("Последний поиск был меньше суток назад, завершаем работу")
+            return
+        await bot.set_resume()
+        bot.set_search_parameters(parameters)
+        bot.set_gpt_answerer(gpt_answerer_component, parameters)
+        # bot.set_resume_generator(resume_generator_manager, gpt_resume_genarator)
+        await bot.start_apply()
+    finally:
+        await manager.close()
 
 
-def main() -> None:
+async def main() -> None:
     try:
         data_folder = Path("data_folder")
         FileManager.validate_data_folder(data_folder)
@@ -121,10 +128,10 @@ def main() -> None:
         llm_api_key = secrets["llm_api_key"]
         llm_proxy = secrets["llm_proxy"]
 
-        create_and_run_bot(secrets, parameters, llm_api_key, llm_proxy)
+        await create_and_run_bot(secrets, parameters, llm_api_key, llm_proxy)
 
         # Ждем в сумме 1 час перед следующим запуском
-        time.sleep(3000)
+        # await asyncio.sleep(3000) # blocking wait in async? better use asyncio.sleep
 
     except ConfigError as ce:
         logger.error(f"Ошибка конфигурации: {str(ce)}")
@@ -137,8 +144,9 @@ def main() -> None:
         tb_str = traceback.format_exc()
         logger.error(f"Неизвестная ошибка\n{tb_str}")
     finally:
-        time.sleep(600)
+        # time.sleep(600)
+        pass
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

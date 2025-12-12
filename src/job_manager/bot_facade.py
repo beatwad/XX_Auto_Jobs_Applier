@@ -48,22 +48,22 @@ class BotFacade:
         self.password = None
         self.parameters = None
 
-    def set_parameters(self, parameters: Dict[str, Any]) -> None:
+    async def set_parameters(self, parameters: Dict[str, Any]) -> None:
         """Проверяем, что все параметры установлены верно"""
         logger.info("Установка параметров")
         self._validate_non_empty(parameters, "Parameters")
         self.parameters = parameters
-        resume_id, resume_titles = self.resume_component.get_resume_parameters()
+        resume_id, resume_titles = await self.resume_component.get_resume_parameters()
         parameters["resume_id"] = resume_id
         parameters["resume_titles"] = resume_titles
         self.apply_component.set_parameters(parameters)
         self.state.parameters_set = True
         logger.info("Все параметры установлены успешно")
 
-    def set_resume(self) -> None:
+    async def set_resume(self) -> None:
         """Собираем информацию о резюме с сайта"""
         logger.info("Собираем информацию о резюме")
-        resume_info, resume_readable = self.resume_component.get_resume_info()
+        resume_info, resume_readable = await self.resume_component.get_resume_info()
         self.resume = resume_info
         self.resume_readable = resume_readable
         self.search_component.set_resume(self.resume_component.resume_id, resume_info)
@@ -99,13 +99,13 @@ class BotFacade:
         )
         logger.info("Менеджер резюме успешно запущен")
 
-    def start_apply(self) -> None:
+    async def start_apply(self) -> None:
         """Начинаем процесс отправки резюме"""
         self.state.validate_state(
             ["resume_set", "parameters_set", "search_parameters_set", "gpt_answerer_set"]
         )
         logger.info("Начинаем процесс поиска вакансий")
-        self.apply_component.start_applying()
+        await self.apply_component.start_applying()
         logger.info("Процесс поиска вакансий успешно завершен")
 
     def _validate_non_empty(self, value, name) -> None:

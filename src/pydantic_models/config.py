@@ -128,10 +128,8 @@ class SearchConfig(BaseModel):
 
 
 class Secrets(BaseModel):
-    access_token: str
-    refresh_token: str
-    hh_login: Optional[str] = ""
-    hh_password: Optional[str] = ""
+    hh_login: str
+    hh_password: str
     llm_api_key: str
     llm_proxy: List[str]
     tg_token: str
