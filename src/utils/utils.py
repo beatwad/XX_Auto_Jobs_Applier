@@ -1,5 +1,6 @@
 import os
 import random
+import re
 import time
 from pathlib import Path
 from typing import Tuple
@@ -161,3 +162,17 @@ def enter_text(element: WebElement, text: str) -> None:
         element.send_keys(Keys.BACKSPACE)
     # Вводим новый текст
     element.send_keys(text)
+
+
+def sanitize_text(text: str) -> str:
+    """Очистить текст"""
+    sanitized_text = text.lower().strip().replace('"', "").replace("\\", "")
+    sanitized_text = (
+        re.sub(r"[\x00-\x1F\x7F]", "", sanitized_text)
+        .replace("\u2009", "")
+        .replace("\xa0", " ")
+        .replace("\n", " ")
+        .replace("\r", "")
+        .rstrip(",")
+    )
+    return sanitized_text

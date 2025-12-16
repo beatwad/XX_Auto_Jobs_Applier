@@ -16,6 +16,7 @@ from src.utils.browser_utils import (
     safe_fill,
     get_clean_text,
 )
+from src.utils.utils import sanitize_text
 
 
 class PlaywrightJobManager:
@@ -52,36 +53,14 @@ class PlaywrightJobManager:
         """Check if logged in, if not, perform login."""
         if not self.page:
             await self.initialize()
-
         logger.info("Checking login status...")
-        try:
-            await self.page.goto("https://hh.ru")
-        except Exception as e:
-            logger.error(f"Failed to load hh.ru: {e}")
-            return False
-
-        # Check for indicators of being logged in
-        try:
-            # Similar selectors to Authenticator.is_logged_in
-            # Resume menu or Profile menu
-            # We use short timeout for check
-            resume_menu = self.page.locator('[data-qa="mainmenu_myResumes"]')
-            profile_menu = self.page.locator('[data-qa="mainmenu_applicantProfile"]')
-
-            if await resume_menu.count() > 0 or await profile_menu.count() > 0:
-                logger.info("User is already logged in.")
-                return True
-        except Exception as e:
-            logger.warning(f"Error checking login status: {e}")
-
-        logger.info("User not logged in. Starting login process.")
-        return await self._perform_login()
+        await asyncio.sleep(2)
+        if not await self._is_logged_in():
+            return await self._perform_login()
+        return True
 
     async def _perform_login(self) -> bool:
         """Perform login flow."""
-        logger.info("Navigating to login page...")
-        await self.page.goto("https://hh.ru/employer")
-
         # Click login button
         if not await safe_click(self.page, "//*[contains(@data-qa, 'login')]"):
             logger.error("Could not find login button")
@@ -136,14 +115,27 @@ class PlaywrightJobManager:
             return False
 
         # Verify login success
-        if (
-            await self.page.locator('[data-qa="mainmenu_myResumes"]').count() > 0
-            or await self.page.locator('[data-qa="mainmenu_applicantProfile"]').count() > 0
-        ):
+        if await self._is_logged_in():
             logger.info("Login successful.")
             return True
 
         logger.warning("Login verification failed.")
+        return False
+
+    async def _is_logged_in(self) -> bool:
+        """Check if logged in."""
+        logger.info("Navigating to login page...")
+        await self.page.goto("https://hh.ru/employer")
+
+        try:
+            resume_menu = self.page.locator('[data-qa="mainmenu_profileAndResumes"]')
+            create_resume_button = self.page.locator('[data-qa="mainmenu_createResume"]')
+
+            if await resume_menu.count() > 0 or await create_resume_button.count() > 0:
+                logger.info("User is already logged in.")
+                return True
+        except Exception as e:
+            logger.warning(f"Error checking login status: {e}")
         return False
 
     async def _handle_account_type_chooser_if_present(self) -> None:
@@ -292,7 +284,6 @@ class PlaywrightJobManager:
 
     async def search_vacancies(self, search_url: str) -> List[Dict[str, Any]]:
         """Search vacancies and return list of basic info."""
-        await self.ensure_logged_in()
         logger.info(f"Navigating to search URL: {search_url}")
         try:
             await self.page.goto(search_url)
@@ -355,7 +346,6 @@ class PlaywrightJobManager:
 
     async def scrape_resume(self, resume_id: str) -> Dict[str, Any]:
         """Scrape resume data."""
-        await self.ensure_logged_in()
         url = f"https://hh.ru/resume/{resume_id}"
         await self.page.goto(url)
         return {}
@@ -379,7 +369,6 @@ class PlaywrightJobManager:
         Apply to vacancy. Returns (Result, Message).
         Result: 'Success', 'Skip', 'Error', 'Limit'
         """
-        await self.ensure_logged_in()
         if self.page.url != vacancy_url:
             await self.page.goto(vacancy_url)
 
@@ -407,9 +396,6 @@ class PlaywrightJobManager:
 
         # Check if we are on response page (URL contains vacancy_response) or modal appeared
         # Sometimes it opens a modal, sometimes navigates.
-
-        # Select resume
-        await self._select_correct_resume(resume_titles)
 
         # Handle Questions
         questions = await self.page.locator('xpath=//*[@data-qa="task-body"]').all()
@@ -445,12 +431,6 @@ class PlaywrightJobManager:
             return "Success", ""
 
         return "Error", "Submit button not found"
-
-    async def _select_correct_resume(self, resume_titles: List[str]):
-        """Select correct resume if multiple available."""
-        # This is simplified. In real flow we might need to expand list.
-        # Check current selected resume
-        pass
 
     async def _handle_question(self, question: Locator, gpt_answerer: Any) -> Tuple[bool, str]:
         """Handle single question."""
@@ -505,84 +485,247 @@ class PlaywrightJobManager:
     async def get_my_resumes_from_browser(self) -> Dict[str, Any]:
         """Get resumes list via browser fetch or scraping."""
         await self.ensure_logged_in()
+        # Open "Резюме и профиль" page from main menu
+        menu_selector = '[data-qa="mainmenu_profileAndResumes"]'
+        clicked = await safe_click(self.page, menu_selector, timeout=5000)
+        if not clicked:
+            await self.page.goto("https://hh.ru")
+            await asyncio.sleep(1)
+            await safe_click(self.page, menu_selector, timeout=5000)
+        # Wait until resume cards are visible on the resumes/profile page
         try:
-            # Try fetching via browser context (uses cookies/session)
-            data = await self.page.evaluate("""async () => {
-                const response = await fetch('https://api.hh.ru/resumes/mine', {
-                    method: 'GET'
-                });
-                if (response.ok) {
-                    return await response.json();
-                }
-                throw new Error('Fetch failed ' + response.status);
-            }""")
-            return data
-        except Exception as e:
-            logger.warning(f"Browser fetch for resumes failed: {e}. Trying scraping.")
-            # Fallback to scraping
-            if self.page.url != "https://hh.ru/applicant/resumes":
-                await self.page.goto("https://hh.ru/applicant/resumes")
+            await self.page.wait_for_selector('[data-qa="resume"]', timeout=15000)
+        except Exception:
+            logger.warning("Resume list not found after opening 'Резюме и профиль' page.")
+            return {"items": []}
 
-            resumes = []
-            links = await self.page.locator('a[href*="/resume/"]').all()
-            seen_ids = set()
+        def _extract_resume_id_from_href(href: Optional[str]) -> Optional[str]:
+            if not href:
+                return None
+            match = re.search(r"/resume/([a-zA-Z0-9]+)", href)
+            if match:
+                return match.group(1)
+            match = re.search(r"[?&]resume=([a-zA-Z0-9]+)", href)
+            if match:
+                return match.group(1)
+            return None
 
-            for link in links:
-                href = await link.get_attribute("href")
-                if href and "/resume/" in href:
-                    match = re.search(r"/resume/([a-zA-Z0-9]+)", href)
-                    if match:
-                        rid = match.group(1)
-                        if rid not in seen_ids and len(rid) > 10:
-                            seen_ids.add(rid)
-                            title = await get_clean_text(link)
-                            resumes.append({"id": rid, "title": title})
-            return {"items": resumes}
+        resumes: List[Dict[str, Any]] = []
+        seen_ids: set[str] = set()
+
+        cards = await self.page.locator('[data-qa="resume"]').all()
+        for card in cards:
+            title = (await card.get_attribute("data-qa-title")) or ""
+            title = title.strip()
+            if not title:
+                title_el = card.locator('[data-qa="title"]').first
+                title = ((await title_el.text_content()) or "").strip()
+
+            link = card.locator('a[href][data-qa^="resume-card-link-"]').first
+            if await link.count() == 0:
+                link = card.locator('a[href*="/resume/"], a[href*="/profile/resume?resume="]').first
+
+            href = await link.get_attribute("href") if await link.count() > 0 else None
+            resume_id = _extract_resume_id_from_href(href)
+            if not resume_id:
+                continue
+
+            if resume_id in seen_ids:
+                continue
+            seen_ids.add(resume_id)
+
+            resumes.append({"id": resume_id, "title": title})
+
+        logger.info(f"Found {len(resumes)} resumes")
+
+        return {"items": resumes}
 
     async def get_resume_content_from_browser(self, resume_id: str) -> Dict[str, Any]:
-        """Get resume content via browser fetch."""
-        await self.ensure_logged_in()
+        """
+        Open hh.ru resume page and scrape key sections.
+
+        We keep backward compatibility by returning API-shaped data when possible,
+        and always attaching scraped sections under `scraped_sections`.
+        """
+
+        resume = {}
+
+        user_profile_url = "https://hh.ru/profile/me"
         try:
-            resume_data = await self.page.evaluate(f"""async () => {{
-                const response = await fetch('https://api.hh.ru/resumes/{resume_id}', {{
-                    method: 'GET'
-                }});
-                if (response.ok) {{
-                    return await response.json();
-                }}
-                throw new Error('Fetch failed ' + response.status);
-            }}""")
-            return resume_data
+            await self.page.goto(user_profile_url, wait_until="domcontentloaded")
         except Exception as e:
-            logger.error(f"Failed to fetch resume data via browser: {e}")
+            logger.error(f"Failed to open resume page {user_profile_url}: {e}")
             return {}
 
-    async def publish_resume_browser(self, resume_id: str) -> bool:
-        """Publish resume using browser fetch."""
-        await self.ensure_logged_in()
+        await asyncio.sleep(2)
+
+        resume["first_name"] = await self._get_first_name()
+        resume["last_name"] = await self._get_last_name()
+        resume["contacts"] = {}
+        resume["contacts"]["telegram"] = await self._get_telegram()
+        resume["contacts"]["whatsapp"] = await self._get_whatsapp()
+        resume["area"] = await self._get_area()
+        resume["driving_license"] = await self._get_driving_license()
+
+        resume_url = f"https://hh.ru/resume/{resume_id}"
         try:
-            await self.page.evaluate(f"""async () => {{
-                await fetch('https://api.hh.ru/resumes/{resume_id}/publish', {{
-                    method: 'POST'
-                }});
-            }}""")
-            return True
+            await self.page.goto(resume_url, wait_until="domcontentloaded")
         except Exception as e:
-            logger.error(f"Failed to publish resume: {e}")
-            return False
-
-    async def api_request(
-        self, url: str, method: str = "GET", params: dict = None, data: dict = None
-    ) -> Dict[str, Any]:
-        """Make API request using browser context."""
-        # Ensure logged in
-        if not self.page:
-            await self.initialize()
-
-        # Use playwright request context
-        response = await self.context.request.fetch(url, method=method, params=params, data=data)
-        if response.status == 200:
-            return await response.json()
-        else:
-            logger.error(f"API request failed: {response.status} {response.status_text}")
+            logger.error(f"Failed to open resume page {resume_url}: {e}")
             return {}
+
+        await asyncio.sleep(2)
+        await self._handle_interfering_messages()
+
+        resume["contacts"]["phone"] = await self._get_resume_phone()
+        resume["contacts"]["email"] = await self._get_resume_email()
+        resume["job_preferences"] = {}
+        resume["job_preferences"]["job_type"] = await self._get_job_type()
+        resume["job_preferences"]["job_format"] = await self._get_job_format()
+        resume["job_preferences"]["time_to_travel"] = await self._get_time_to_travel()
+        resume["job_preferences"][
+            "readiness_to_job_trips"
+        ] = await self._get_readiness_to_job_trips()
+        resume["job_preferences"]["salary"] = await self._get_salary()
+        resume["total_experience"] = await self._get_total_experience()
+        resume["experience"] = await self._get_experience()
+        import code
+
+        code.interact(local=dict(globals(), **locals()))
+
+        return resume
+
+    async def _get_first_name(self) -> str:
+        first_name = self.page.locator('[data-qa="profile-common-card-firstname"]')
+        if await first_name.count() > 0:
+            first_name = await first_name.first.text_content()
+            first_name = sanitize_text(first_name)
+        return first_name
+
+    async def _get_last_name(self) -> str:
+        last_name = self.page.locator('[data-qa="profile-common-card-lastname"]')
+        if await last_name.count() > 0:
+            last_name = await last_name.first.text_content()
+            last_name = sanitize_text(last_name)
+
+    async def _get_telegram(self) -> str:
+        telegram = self.page.locator("xpath=//*[contains(text(), 'Telegram')]")
+        if await telegram.count() > 0:
+            parent = telegram.first.locator("../../../../../../../..")
+            telegram = await parent.text_content()
+            telegram = telegram.replace("Telegram", "").strip()
+            return telegram
+        return ""
+
+    async def _get_whatsapp(self) -> str:
+        whatsapp = self.page.locator("xpath=//*[contains(text(), 'Whatsapp')]")
+        if await whatsapp.count() > 0:
+            parent = whatsapp.first.locator("../../../../../../../..")
+            whatsapp = await parent.text_content()
+            whatsapp = whatsapp.replace("Whatsapp", "").strip()
+            return whatsapp
+        return ""
+
+    async def _get_area(self) -> str:
+        area = self.page.locator("xpath=//*[contains(text(), 'Где живёте')]")
+        if await area.count() > 0:
+            parent = area.first.locator("../../../../../../../..")
+            area = await parent.text_content()
+            area = area.replace("Где живёте", "").strip()
+            area = area.split("·")[0].strip()
+            return area
+        return ""
+
+    async def _get_driving_license(self) -> str:
+        driving_license = self.page.locator("xpath=//*[contains(text(), 'Опыт вождения')]")
+        if await driving_license.count() > 0:
+            parent = driving_license.first.locator("../../..")
+            driving_license = await parent.text_content()
+            driving_license = driving_license.replace("Опыт вождения", "").strip()
+            driving_license = sanitize_text(driving_license)
+            driving_license = driving_license.split("·")[0].strip()
+            return driving_license
+        return ""
+
+    async def _get_resume_phone(self) -> str:
+        phone = self.page.locator('[data-qa="resume-contact-phone-value-text"]')
+        if await phone.count() > 0:
+            phone = await phone.first.text_content()
+            phone = sanitize_text(phone)
+            return phone
+        return ""
+
+    async def _get_resume_email(self) -> str:
+        email = self.page.locator('[data-qa="resume-contact-email-value-preferred-text"]')
+        if await email.count() > 0:
+            email = await email.first.text_content()
+            email = sanitize_text(email)
+            return email
+        return ""
+
+    async def _get_salary(self) -> str:
+        salary = self.page.locator('[data-qa="title-description"]')
+        if await salary.count() > 0:
+            salary = await salary.text_content()
+            salary = sanitize_text(salary)
+            return salary
+        return ""
+
+    async def _get_job_type(self) -> str:
+        job_type = self.page.locator("xpath=//*[contains(text(), 'Тип занятости:')]")
+        if await job_type.count() > 0:
+            parent = job_type.first.locator("..")
+            job_type = await parent.text_content()
+            job_type = sanitize_text(job_type)
+            job_type = job_type.split(":")[1].strip()
+            return job_type
+        return ""
+
+    async def _get_job_format(self) -> str:
+        job_format = self.page.locator("xpath=//*[contains(text(), 'Формат работы:')]")
+        if await job_format.count() > 0:
+            parent = job_format.first.locator("..")
+            job_format = await parent.text_content()
+            job_format = sanitize_text(job_format)
+            job_format = job_format.split(":")[1].strip()
+            return job_format
+        return ""
+
+    async def _get_time_to_travel(self) -> str:
+        time_to_travel = self.page.locator("xpath=//*[contains(text(), 'Желательное время')]")
+        if await time_to_travel.count() > 0:
+            parent = time_to_travel.first.locator("..")
+            time_to_travel = await parent.text_content()
+            time_to_travel = sanitize_text(time_to_travel)
+            time_to_travel = time_to_travel.split(":")[1].strip()
+            return time_to_travel
+        return ""
+
+    async def _get_readiness_to_job_trips(self) -> str:
+        ready_to_job_trip = self.page.locator("xpath=//*[contains(text(), 'Командировки:')]")
+        if await ready_to_job_trip.count() > 0:
+            parent = ready_to_job_trip.first.locator("..")
+            ready_to_job_trip = await parent.text_content()
+            ready_to_job_trip = sanitize_text(ready_to_job_trip)
+            ready_to_job_trip = ready_to_job_trip.split(":")[1].strip()
+            return ready_to_job_trip
+        return ""
+
+    async def _get_total_experience(self) -> str:
+        total_experience = self.page.locator("xpath=//*[contains(text(), 'Опыт работы:')]")
+        if await total_experience.count() > 0:
+            parent = total_experience.first.locator("..")
+            total_experience = await parent.text_content()
+            total_experience = sanitize_text(total_experience)
+            total_experience = total_experience.split(":")[1].strip()
+            return total_experience
+        return ""
+
+    async def _get_experience(self) -> str:
+        experience = self.page.locator('[data-qa="resume-list-card-experience"]')
+        group_locators = experience.locator('[class^="group--"]')
+        experience_texts = await group_locators.all_text_contents()
+        experience_texts = [
+            text.replace("\u2009", "").replace("\xa0", " ") for text in experience_texts
+        ]
+        return experience_texts
