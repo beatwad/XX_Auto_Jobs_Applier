@@ -398,7 +398,7 @@ class PlaywrightJobManager:
         # Sometimes it opens a modal, sometimes navigates.
 
         # Handle Questions
-        questions = await self.page.locator('xpath=//*[@data-qa="task-body"]').all()
+        questions = await self.page.locator('[data-qa="task-body"]').all()
         if questions:
             logger.info(f"Found {len(questions)} questions")
             for question in questions:
@@ -551,12 +551,7 @@ class PlaywrightJobManager:
         resume = {}
 
         user_profile_url = "https://hh.ru/profile/me"
-        try:
-            await self.page.goto(user_profile_url, wait_until="domcontentloaded")
-        except Exception as e:
-            logger.error(f"Failed to open resume page {user_profile_url}: {e}")
-            return {}
-
+        await self.page.goto(user_profile_url, wait_until="domcontentloaded")
         await asyncio.sleep(2)
 
         resume["first_name"] = await self._get_first_name()
@@ -568,14 +563,8 @@ class PlaywrightJobManager:
         resume["driving_license"] = await self._get_driving_license()
 
         resume_url = f"https://hh.ru/resume/{resume_id}"
-        try:
-            await self.page.goto(resume_url, wait_until="domcontentloaded")
-        except Exception as e:
-            logger.error(f"Failed to open resume page {resume_url}: {e}")
-            return {}
-
+        await self.page.goto(resume_url, wait_until="domcontentloaded")
         await asyncio.sleep(2)
-        await self._handle_interfering_messages()
 
         resume["contacts"]["phone"] = await self._get_resume_phone()
         resume["contacts"]["email"] = await self._get_resume_email()
@@ -589,10 +578,20 @@ class PlaywrightJobManager:
         resume["job_preferences"]["salary"] = await self._get_salary()
         resume["total_experience"] = await self._get_total_experience()
         resume["experience"] = await self._get_experience()
+        resume["skills"] = await self._get_skills()
+        resume["educations"] = await self._get_educations()
+        resume["recommendations"] = await self._get_recommendations()
+        resume["additional_education"] = await self._get_additional_education()
+        resume["exams"] = await self._get_exams()
+        resume["certificates"] = await self._get_certificates()
+
+        resume_url = f"https://hh.ru/resume/edit/{resume_id}/about"
+        await self.page.goto(resume_url, wait_until="domcontentloaded")
+        await asyncio.sleep(2)
+        resume["about_me"] = await self._get_about_me()
         import code
 
         code.interact(local=dict(globals(), **locals()))
-
         return resume
 
     async def _get_first_name(self) -> str:
@@ -728,4 +727,58 @@ class PlaywrightJobManager:
         experience_texts = [
             text.replace("\u2009", "").replace("\xa0", " ") for text in experience_texts
         ]
-        return experience_texts
+        experience = "\n".join(experience_texts)
+        return experience
+
+    async def _get_skills(self) -> str:
+        skill_card = self.page.locator("[data-qa='skills-card']")
+        skills = skill_card.locator('[class^="magritte-tag__label"]')
+        skills = await skills.all_text_contents()
+        skills = "\n".join(skills)
+        return skills
+
+    async def _get_educations(self) -> str:
+        education_card = self.page.locator("[data-qa='resume-list-card-education']")
+        educations = education_card.locator('[data-qa="cell-text-content"]')
+        educations = await educations.all_text_contents()
+        educations = "\n".join(educations)
+        return educations
+
+    async def _get_about_me(self) -> str:
+        about_me = self.page.locator("[data-qa='resume-editor-about']")
+        about_me = await about_me.all_text_contents()
+        about_me = "\n".join(about_me)
+        return about_me
+
+    async def _get_recommendations(self) -> str:
+        recommendations = self.page.locator("[data-qa='resume-list-card-recommendation']")
+        recommendations_locator = recommendations.locator('[data-qa="cell-text-content"]')
+        recommendations = await recommendations_locator.all_text_contents()
+        recommendations = "\n".join(recommendations)
+        return recommendations
+
+    async def _get_additional_education(self) -> str:
+        additional_education = self.page.locator("[data-qa='resume-list-card-additionalEducation']")
+        additional_education_locator = additional_education.locator('[data-qa="cell-text-content"]')
+        additional_education = await additional_education_locator.all_text_contents()
+        additional_education = "\n".join(additional_education)
+        return additional_education
+
+    async def _get_exams(self) -> str:
+        exams = self.page.locator("[data-qa='resume-list-card-certificate']")
+        exams_locator = exams.locator('[data-qa="cell-text-content"]')
+        exams = await exams_locator.all_text_contents()
+        exams = [
+            r
+            for r in exams
+            if not (r == "Профориентация" or r.startswith("Тест поможет определить ваши"))
+        ]
+        exams = "\n".join(exams)
+        return exams
+
+    async def _get_certificates(self) -> str:
+        certificates = self.page.locator("[data-qa='resume-list-card-certificate']")
+        certificates_locator = certificates.locator('[data-qa="cell-text-content"]')
+        certificates = await certificates_locator.all_text_contents()
+        certificates = "\n".join(certificates)
+        return certificates
