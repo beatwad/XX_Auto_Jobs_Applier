@@ -5,11 +5,14 @@ import requests
 from Levenshtein import distance
 
 from src.logger_config import logger
+from src.job_manager.playwright_manager import PlaywrightJobManager
 
 
 class SearchCustomizer:
-    def __init__(self):
+    def __init__(self, manager: PlaywrightJobManager):
+        self.manager = manager
         self.resume = None
+        self.resume_id = None
         self.search_params = {}
 
     def set_resume(self, resume_id: str, resume: Dict[str, Any]) -> None:
@@ -17,24 +20,9 @@ class SearchCustomizer:
         self.resume_id = resume_id
         self.resume = resume
 
-    def get_search_url(self, page: int = 0) -> str:
-        """Generate search URL with parameters."""
-        base_url = "https://hh.ru/search/vacancy"
-        params = self.search_params.copy()
-
-        # Add pagination
-        params["page"] = page
-
-        # Helper to clean params (remove empty lists/None)
-        clean_params = {}
-        for k, v in params.items():
-            if v not in [None, "", [], {}]:
-                clean_params[k] = v
-
-        # Convert to query string
-        # doseq=True handles lists like area=['1', '2'] -> area=1&area=2
-        query_string = urllib.parse.urlencode(clean_params, doseq=True)
-        return f"{base_url}?{query_string}"
+    async def start_search(self) -> None:
+        await self.manager.start_search(self.resume_id)
+        await self.manager.set_advanced_search_params(self.search_params)
 
     def set_advanced_search_params(self, parameters: Dict[str, Any]) -> None:
         """Установка параметрок поиска"""
@@ -61,6 +49,7 @@ class SearchCustomizer:
         self.words_to_exclude = ""
         self.districts = ""
         self.education = ""
+        self.start_search()
 
     def _get_search_field_ids(self, parameters: Dict[str, Any]) -> List[str]:
         """Получить id настроек области поиска"""

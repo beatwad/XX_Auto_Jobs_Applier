@@ -107,10 +107,9 @@ class JobApplier:
         self.resume_generator_manager = resume_generator_manager
         self.gpt_resume_generator = gpt_resume_generator
 
-    async def search_vacancies(self, page_num: int = 0) -> List[Any]:
-        """Начать поиск"""
-        url = self.search_component.get_search_url(page_num)
-        return await self.manager.search_vacancies(url)
+    async def get_vacancies_from_page(self, page_num: int = 0) -> List[Any]:
+        """Получить вакансии с очередной страницы"""
+        return await self.manager.get_vacancies_from_page(page_num)
 
     async def scrape_vacancy(self, vacancy: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -174,7 +173,7 @@ class JobApplier:
         # продолжаем пока не достигнем максимально допустимого числа откликов
         while self.success_applies_num < self.max_applies_num and self.applies_num < 400:
             # идем по всем страницам пока они не закончатся
-            vacancies = await self.search_vacancies(self.page_num)
+            vacancies = await self.get_vacancies_from_page(self.page_num)
             if len(vacancies) == 0:
                 if self.page_num == 0:
                     logger.warning("По данному поисковому запросу не найдено ни одной вакансии")

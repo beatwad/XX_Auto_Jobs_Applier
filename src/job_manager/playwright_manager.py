@@ -286,52 +286,26 @@ class PlaywrightJobManager:
         """Async pause."""
         await asyncio.sleep(random.uniform(low, high))
 
-    async def search_vacancies(self, search_url: str) -> List[Dict[str, Any]]:
-        """Search vacancies and return list of basic info."""
-        logger.info(f"Navigating to search URL: {search_url}")
-        try:
-            await self.page.goto(search_url)
-        except Exception as e:
-            logger.error(f"Failed to load search URL: {e}")
-            return []
+    async def start_search(self, resume_id: str) -> None:
+        url = f"https://hh.ru/resume/{resume_id}"
+        await self.page.goto(url)
+        await asyncio.sleep(2)
 
-        # Scrape results
-        vacancies = []
-        # Wait for results to load
-        try:
-            await self.page.wait_for_selector('[data-qa="vacancy-serp__vacancy"]', timeout=5000)
-        except Exception:
-            logger.warning("No vacancies found or timeout.")
-            return []
+        recommend_button = self.page.locator("xpath=//*[contains(text(), 'Подобрали для вас')]")
+        if await recommend_button.count() > 0:
+            await recommend_button.click()
 
-        cards = await self.page.locator('[data-qa="vacancy-serp__vacancy"]').all()
+    async def set_advanced_search_params(self, search_params: Dict[str, Any]) -> None:
+        """Зайти на страницу расширенного поиска"""
+        self.search_params = search_params
+        recommend_button = self.page.locator('[aria-label="Расширенный поиск"]')
+        if await recommend_button.count() > 0:
+            await recommend_button.click()
+            await asyncio.sleep(2)
 
-        for card in cards:
-            title_el = card.locator('[data-qa="serp-item__title"]')
-            company_el = card.locator('[data-qa="vacancy-serp__vacancy-employer"]')
-
-            if await title_el.count() > 0:
-                url = await title_el.get_attribute("href")
-                name = await get_clean_text(title_el)
-                company = (
-                    await get_clean_text(company_el) if await company_el.count() > 0 else "Unknown"
-                )
-
-                # Extract ID from URL
-                match = re.search(r"vacancy/(\d+)", url)
-                vac_id = match.group(1) if match else None
-
-                if vac_id:
-                    vacancies.append(
-                        {
-                            "id": vac_id,
-                            "name": name,
-                            "alternate_url": url.split("?")[0] if url else "",
-                            "employer": {"name": company},
-                        }
-                    )
-
-        return vacancies
+    async def get_vacancies_from_page(self, page_num: int = 0) -> List[Dict[str, Any]]:
+        """Получить вакансии с очередной страницы"""
+        return await self.page.locator('[data-qa="vacancy"]').all()
 
     async def get_vacancy_full_info(self, vacancy_url: str) -> Dict[str, Any]:
         """Get full vacancy info for LLM."""
@@ -347,12 +321,6 @@ class PlaywrightJobManager:
         return {
             "description": description,
         }
-
-    async def scrape_resume(self, resume_id: str) -> Dict[str, Any]:
-        """Scrape resume data."""
-        url = f"https://hh.ru/resume/{resume_id}"
-        await self.page.goto(url)
-        return {}
 
     async def _handle_interfering_messages(self):
         """Handle cookies and notifications."""

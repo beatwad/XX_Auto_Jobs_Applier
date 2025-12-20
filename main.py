@@ -97,7 +97,7 @@ async def create_and_run_bot(
         resume_component = ResumeScraper(
             manager, job_title, parameters.get("resume_id"), gpt_answerer_component
         )
-        search_component = SearchCustomizer()
+        search_component = SearchCustomizer(manager)
         apply_component = JobApplier(manager, resume_component, search_component)
 
         bot = BotFacade(resume_component, search_component, apply_component)
