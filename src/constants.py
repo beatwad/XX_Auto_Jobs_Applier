@@ -11,11 +11,8 @@ DUMMY_PERSONAL_INFO_MALE = {
     "whatsapp": "https://wa.me/aristaniy93",
     "other_site": "https://www.aristaniy93.ru",
     "habr_career": "https://career.habr.ru/aristaniy93",
-    "skype": "aristaniy93",
     "linkedin": "https://linkedin.com/in/aristaniy-zvyagoltsev-f3e57c712",
     "github": "https://github.com/aristaniy93",
-    "moi_krug": "https://moi-krug.ru/aristaniy93",
-    "livejournal": "https://aristaniy93.livejournal.com",
 }
 
 # Личные данные-пустышки для анонимизации (женский пол)
@@ -31,11 +28,8 @@ DUMMY_PERSONAL_INFO_FEMALE = {
     "whatsapp": "https://wa.me/aristaniya93",
     "other_site": "https://www.aristaniya93.ru",
     "habr_career": "https://career.habr.ru/aristaniya93",
-    "skype": "aristaniya93",
     "linkedin": "https://linkedin.com/in/aristaniya-zvyagoltseva-f3e57c712",
     "github": "https://github.com/aristaniya93",
-    "moi_krug": "https://moi-krug.ru/aristaniya93",
-    "livejournal": "https://aristaniya93.livejournal.com",
 }
 
 # Пути к файлам логов и настроек

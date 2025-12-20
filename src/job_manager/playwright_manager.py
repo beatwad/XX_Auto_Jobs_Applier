@@ -62,7 +62,7 @@ class PlaywrightJobManager:
     async def _perform_login(self) -> bool:
         """Perform login flow."""
         # Click login button
-        if not await safe_click(self.page, "//*[contains(@data-qa, 'login')]"):
+        if not await safe_click(self.page, "[data-qa*='login']"):
             logger.error("Could not find login button")
             return False
 
@@ -125,7 +125,11 @@ class PlaywrightJobManager:
     async def _is_logged_in(self) -> bool:
         """Check if logged in."""
         logger.info("Navigating to login page...")
-        await self.page.goto("https://hh.ru/employer")
+        try:
+            await self.page.goto("https://hh.ru/employer", timeout=10000)
+        except Exception as e:
+            logger.warning(f"Failed to navigate to login page: {e}")
+            logger.info("Trying to continue...")
 
         try:
             resume_menu = self.page.locator('[data-qa="mainmenu_profileAndResumes"]')
@@ -148,7 +152,7 @@ class PlaywrightJobManager:
 
         chooser_container = self.page.locator("//*[@data-qa='account-type-cards']")
         applicant_card = self.page.locator(
-            "//*[contains(@data-qa,'account-type-card-APPLICANT')]/ancestor::label[1]"
+            "[data-qa*='account-type-card-APPLICANT']/ancestor::label[1]"
         )
         submit_btn = self.page.locator("//*[@data-qa='submit-button']")
 
@@ -194,7 +198,7 @@ class PlaywrightJobManager:
 
         # In HH markup, selected state can appear as data-qa="credential-type-PHONE checked"
         phone_checked = self.page.locator(
-            "//*[contains(@data-qa,'credential-type-PHONE') and contains(@data-qa,'checked')]"
+            "[data-qa*='credential-type-PHONE'] and [data-qa*='checked']"
         )
         if (await phone_checked.count()) == 0:
             return
@@ -554,20 +558,42 @@ class PlaywrightJobManager:
         await self.page.goto(user_profile_url, wait_until="domcontentloaded")
         await asyncio.sleep(2)
 
-        resume["first_name"] = await self._get_first_name()
-        resume["last_name"] = await self._get_last_name()
-        resume["contacts"] = {}
-        resume["contacts"]["telegram"] = await self._get_telegram()
-        resume["contacts"]["whatsapp"] = await self._get_whatsapp()
+        resume["personal_information"] = {}
+        resume["personal_information"]["first_name"] = await self._get_first_name()
+        resume["personal_information"]["last_name"] = await self._get_last_name()
+        resume["personal_information"]["telegram"] = await self._get_telegram()
+        resume["personal_information"]["whatsapp"] = await self._get_whatsapp()
         resume["area"] = await self._get_area()
         resume["driving_license"] = await self._get_driving_license()
+        linkedin, habr_career = await self._get_other_links()
+        if linkedin:
+            resume["personal_information"]["linkedin"] = linkedin
+        if habr_career:
+            resume["personal_information"]["habr_career"] = habr_career
+
+        await safe_click(self.page, "[data-qa='profile-common-card-edit']", timeout=5000)
+        await asyncio.sleep(1)
+        middle_name = await self._get_middle_name()
+        if middle_name:
+            resume["personal_information"]["middle_name"] = middle_name
+        (
+            sex,
+            citizenship,
+            legal_auth,
+        ) = await self._get_sex_citizenship_and_legal_auth()
+        if sex:
+            resume["personal_information"]["sex"] = sex
+        if citizenship:
+            resume["citizenship"] = citizenship
+        if legal_auth:
+            resume["legal_authorization"] = legal_auth
 
         resume_url = f"https://hh.ru/resume/{resume_id}"
         await self.page.goto(resume_url, wait_until="domcontentloaded")
         await asyncio.sleep(2)
 
-        resume["contacts"]["phone"] = await self._get_resume_phone()
-        resume["contacts"]["email"] = await self._get_resume_email()
+        resume["personal_information"]["phone"] = await self._get_resume_phone()
+        resume["personal_information"]["email"] = await self._get_resume_email()
         resume["job_preferences"] = {}
         resume["job_preferences"]["job_type"] = await self._get_job_type()
         resume["job_preferences"]["job_format"] = await self._get_job_format()
@@ -584,28 +610,77 @@ class PlaywrightJobManager:
         resume["additional_education"] = await self._get_additional_education()
         resume["exams"] = await self._get_exams()
         resume["certificates"] = await self._get_certificates()
+        await self.raise_resume()
 
         resume_url = f"https://hh.ru/resume/edit/{resume_id}/about"
         await self.page.goto(resume_url, wait_until="domcontentloaded")
         await asyncio.sleep(2)
         resume["about_me"] = await self._get_about_me()
-        import code
-
-        code.interact(local=dict(globals(), **locals()))
         return resume
+
+    async def raise_resume(self) -> None:
+        """Raise resume in search."""
+        raise_btn = self.page.locator(
+            "xpath=//*[contains(text(), 'Поднять в') and contains(text(), 'поиске')]"
+        )
+        if await raise_btn.count() > 0:
+            await raise_btn.first.click()
+            await asyncio.sleep(2)
+            logger.info("Резюме успешно поднято")
+        else:
+            logger.info("Резюме пока нельзя поднять")
 
     async def _get_first_name(self) -> str:
         first_name = self.page.locator('[data-qa="profile-common-card-firstname"]')
         if await first_name.count() > 0:
             first_name = await first_name.first.text_content()
-            first_name = sanitize_text(first_name)
+            first_name = sanitize_text(first_name, lowercase=False)
         return first_name
+
+    async def _get_other_links(self) -> Tuple[str, str]:
+        linkedin = ""
+        habr_career = ""
+        other_links = await self.page.locator(
+            '[data-qa*="profile-other-communication-methods-card-row"]'
+        ).all()
+        for other_link in other_links:
+            text = await other_link.text_content()
+            text = text.replace("\u2009", "").replace("\xa0", " ")
+            if "linkedin.com" in text:
+                linkedin = text
+            elif "habr.ru" in text:
+                habr_career = text
+        return linkedin, habr_career
+
+    async def _get_middle_name(self) -> str:
+        middle_name = self.page.locator('[data-qa*="profile-common-edit-middleName"]')
+        if await middle_name.count() > 0:
+            middle_name = await middle_name.first.get_attribute("value")
+            middle_name = sanitize_text(middle_name, lowercase=False)
+        return middle_name
+
+    async def _get_sex_citizenship_and_legal_auth(self) -> Tuple[str, str, str]:
+        select_activators = await self.page.locator('[data-qa="magritte-select-activator"]').all()
+        sex = ""
+        citizenship = ""
+        work_permission = ""
+        for select_activator in select_activators:
+            text = await select_activator.text_content()
+            text = text.replace("\u2009", "").replace("\xa0", " ")
+            if text.startswith("Пол"):
+                sex = text.replace("Пол", "").strip()
+            elif text.startswith("Гражданство"):
+                citizenship = text.replace("Гражданство", "").strip()
+            elif text.startswith("Разрешение на работу"):
+                work_permission = text.replace("Разрешение на работу", "").strip()
+        return sex, citizenship, work_permission
 
     async def _get_last_name(self) -> str:
         last_name = self.page.locator('[data-qa="profile-common-card-lastname"]')
         if await last_name.count() > 0:
             last_name = await last_name.first.text_content()
-            last_name = sanitize_text(last_name)
+            last_name = sanitize_text(last_name, lowercase=False)
+        return last_name
 
     async def _get_telegram(self) -> str:
         telegram = self.page.locator("xpath=//*[contains(text(), 'Telegram')]")
@@ -658,7 +733,7 @@ class PlaywrightJobManager:
         email = self.page.locator('[data-qa="resume-contact-email-value-preferred-text"]')
         if await email.count() > 0:
             email = await email.first.text_content()
-            email = sanitize_text(email)
+            email = sanitize_text(email, lowercase=False)
             return email
         return ""
 

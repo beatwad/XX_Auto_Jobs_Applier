@@ -198,7 +198,7 @@ parse_contacts_template = """
 You are an expert in career development, recruitment, and personnel management with extensive experience in crafting, analyzing, and optimizing resumes.
 Parse the provided resume and extract the contact information about user's telegram, email, phone number, and LinkedIn profile.
 Output format (strictly follow this format):
-Telegram: [telegram username or link, if available, otherwise "No info"]
+Telegram: [Telegram username or link, if available, otherwise "No info"]
 Whatsapp: [WhatsApp number, if available, otherwise "No info"]
 Email: [email address, if available, otherwise "No info"]
 Phone: [phone number, if available, otherwise "No info"]

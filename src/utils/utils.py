@@ -164,9 +164,11 @@ def enter_text(element: WebElement, text: str) -> None:
     element.send_keys(text)
 
 
-def sanitize_text(text: str) -> str:
+def sanitize_text(text: str, lowercase: bool = True) -> str:
     """Очистить текст"""
-    sanitized_text = text.lower().strip().replace('"', "").replace("\\", "")
+    if lowercase:
+        text = text.lower()
+    sanitized_text = text.strip().replace('"', "").replace("\\", "")
     sanitized_text = (
         re.sub(r"[\x00-\x1F\x7F]", "", sanitized_text)
         .replace("\u2009", "")

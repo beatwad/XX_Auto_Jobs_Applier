@@ -66,11 +66,14 @@ class ResumeScraper:
 
     async def get_resume_info(self) -> Tuple[str, Dict[str, Any]]:
         """Собрать всю информацию о резюме пользователя"""
-        resume_info = await self.get_selected_resume_info(self.resume_id)
-        self.get_previous_job_details(resume_info)
-        await self.raise_resume(self.resume_id, resume_info)
+        self.resume_info = await self.get_selected_resume_info(self.resume_id)
+        self.get_previous_job_details()
         # если можно начинать поиск - парсим дополнительные данные о контактах из резюме с помощью LLM
-        self.parse_contacts(self.resume_info.get("about_me"))
+        personal_information = self.resume_info["personal_information"]
+        for key in ["telegram", "whatsapp", "phone", "email", "linkedin"]:
+            if not personal_information.get(key):
+                self.parse_contacts(self.resume_info.get("about_me"))
+                break
         self.personal_information = self.resume_info["personal_information"].copy()
         self.anonymize_personal_information()
         self.save_resume_info()
@@ -83,9 +86,9 @@ class ResumeScraper:
         resume_info = await self.manager.get_resume_content_from_browser(resume_id)
         return resume_info
 
-    def get_previous_job_details(self, resume_info: dict[str, Any]) -> None:
+    def get_previous_job_details(self) -> None:
         """Добавить информацию о предыдущей работе"""
-        if not resume_info["experience"]:
+        if not self.resume_info["experience"]:
             return
         self.resume_info["previous_job_details"] = {}
         self.resume_info["previous_job_details"]["why_leave_previous_job"] = (
@@ -98,19 +101,20 @@ class ResumeScraper:
             "Отношения с начальством были хорошие, токсичного поведения замечено не было."
         )
 
-    async def raise_resume(self, resume_id: str, resume_info: Dict[str, Any]) -> None:
-        """Поднять резюме в поиске"""
-        # для начала проверяем, что резюме можно поднять
-        # (прошло как минимум 4 часа с последнего подъема резюме)
-        logger.info("Проверяем возможность подъема резюме")
-        next_publish_at = resume_info["next_publish_at"]
-        next_publish_at = datetime.fromisoformat(next_publish_at).replace(tzinfo=None)
-        dt_now = datetime.now()
-        # если поднять можно - поднимаем # TODO: replace with button click
-        # if dt_now >= next_publish_at:
-        #     url = f"https://api.hh.ru/resumes/{resume_id}/publish"
-        #     await self.manager.api_request(url, method="POST")
-        #     logger.info("Резюме успешно поднято")
+    def parse_contacts(self, resume_info: str) -> None:
+        """Парсим контакты из резюме"""
+        logger.info("Парсим контакты из резюме")
+        contacts = self.gpt_answerer_component.parse_contacts(resume_info)
+        if contacts.get("Phone"):
+            self.resume_info["personal_information"]["phone"] = contacts.get("Phone")
+        if contacts.get("Email"):
+            self.resume_info["personal_information"]["email"] = contacts.get("Email")
+        if contacts.get("LinkedIn"):
+            self.resume_info["personal_information"]["linkedin"] = contacts.get("LinkedIn")
+        if contacts.get("Telegram"):
+            self.resume_info["personal_information"]["telegram"] = contacts.get("Telegram")
+        if contacts.get("Whatsapp"):
+            self.resume_info["personal_information"]["whatsapp"] = contacts.get("Whatsapp")
 
     def save_resume_info(self) -> None:
         """Сохранить резюме в файл"""

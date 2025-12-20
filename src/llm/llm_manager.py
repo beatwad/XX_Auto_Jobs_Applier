@@ -626,6 +626,7 @@ class GPTAnswerer:
         Спрашиваем у LLM, может ли быть интересна
         данная вакансия с учетом нашего резюме, навыков и интересов
         """
+        # TODO: add Pydantic model for that output
         logger.info("Проверяем, насколько вакансия может быть интересна.")
         chain = self._create_chain(prompts.job_is_interesting)
         try:
@@ -659,6 +660,7 @@ class GPTAnswerer:
         Спрашиваем у LLM, наскольо может быть интересно
         данное резюме с точки зрения его улучшения
         """
+        # TODO: add Pydantic model for that output
         chain = self._create_chain(prompts.resume_is_interesting)
         try:
             output = chain.invoke(
@@ -740,6 +742,7 @@ class GPTAnswerer:
         """
         Парсим контакты из резюме и возвращаем их в виде словаря.
         """
+        # TODO: add Pydantic model for that output
         logger.info("Парсим контакты из резюме")
         chain = self._create_chain(prompts.parse_contacts_template)
         output = chain.invoke(
