@@ -170,6 +170,8 @@ class JobApplier:
         result = ""
         # пишем рекомендации по улучшению резюме
         self.resume_improvement_recommendations()
+        # запускаем поиск вакансий
+        await self.search_component.start_search()
         # продолжаем пока не достигнем максимально допустимого числа откликов
         while self.success_applies_num < self.max_applies_num and self.applies_num < 400:
             # идем по всем страницам пока они не закончатся

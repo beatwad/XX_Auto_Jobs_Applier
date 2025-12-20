@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from Levenshtein import distance
 from playwright.async_api import Browser, BrowserContext, Page, Locator
 
 from src.logger_config import logger
@@ -296,12 +297,440 @@ class PlaywrightJobManager:
             await recommend_button.click()
 
     async def set_advanced_search_params(self, search_params: Dict[str, Any]) -> None:
-        """Зайти на страницу расширенного поиска"""
-        self.search_params = search_params
-        recommend_button = self.page.locator('[aria-label="Расширенный поиск"]')
-        if await recommend_button.count() > 0:
-            await recommend_button.click()
-            await asyncio.sleep(2)
+        """
+        Зайти на страницу расширенного поиска hh.ru и выставить настройки из `search_config.yaml`.
+
+        `search_params` ожидается в "сыром" виде (как в YAML / `SearchConfig.model_dump()`).
+        """
+        if not self.page:
+            await self.initialize()
+        await self.ensure_logged_in()
+
+        self.search_params = search_params or {}
+        await self._handle_interfering_messages()
+
+        # 1) Open advanced search page
+        opened = False
+        for selector in (
+            "[aria-label='Расширенный поиск']",
+            "[data-qa='advanced-search']",
+            "xpath=//*[contains(., 'Расширенный поиск')]",
+        ):
+            if await safe_click(self.page, selector, timeout=5000):
+                opened = True
+                break
+
+        if not opened:
+            logger.warning("Advanced search button not found; trying to open advanced search URL")
+            try:
+                await self.page.goto(
+                    "https://hh.ru/search/vacancy/advanced", wait_until="domcontentloaded"
+                )
+            except Exception as e:
+                logger.error(f"Failed to navigate to advanced search page: {e}")
+                return
+
+        # Wait for advanced-search UI to be present
+        try:
+            await self.page.wait_for_selector(
+                "[data-qa='vacancysearch__keywords-input']", timeout=15000
+            )
+        except Exception:
+            # UI sometimes loads under different qa; keep going best-effort
+            pass
+
+        await self._handle_interfering_messages()
+
+        # 2) Apply settings (best-effort for each block)
+        await self._set_keywords()
+        await self._set_search_field()
+        await self._set_words_to_exclude()
+        await self._set_professional_role()
+        await self._set_industry()
+        await self._set_area()
+        await self._set_districts()
+        await self._set_metro()
+        await self._set_salary_and_currency()
+        await self._set_only_with_salary()
+        await self._set_education()
+        await self._set_experience()
+        await self._set_employment()
+        await self._set_schedule()
+        await self._set_part_time()
+        await self._set_vacancy_label()
+        await self._set_order_by()
+        await self._set_period()
+
+        # 3) Start search
+        await self._handle_interfering_messages()
+        if not await safe_click(
+            self.page, "[data-qa='advanced-search-submit-button']", timeout=10000
+        ):
+            await safe_click(
+                self.page, "xpath=//*[text()='Найти' or text()='Найти вакансии']", timeout=5000
+            )
+        await asyncio.sleep(2)
+
+    # -----------------------------
+    # Advanced search helpers (UI)
+    # -----------------------------
+
+    @staticmethod
+    def _split_multi(value: Any) -> List[str]:
+        if not value:
+            return []
+        if isinstance(value, list):
+            return [str(v).strip() for v in value if str(v).strip()]
+        if not isinstance(value, str):
+            return [str(value).strip()] if str(value).strip() else []
+        # Accept both comma and semicolon separated input
+        raw = value.replace(";", ",")
+        return [v.strip() for v in raw.split(",") if v.strip()]
+
+    @staticmethod
+    def _true_keys(value: Any) -> List[str]:
+        if not isinstance(value, dict):
+            return []
+        return [k for k, v in value.items() if v is True]
+
+    @staticmethod
+    def _first_true_key(value: Any) -> Optional[str]:
+        keys = PlaywrightJobManager._true_keys(value)
+        return keys[0] if keys else None
+
+    async def _click_best_suggestion(self, desired: str, suggestion_xpath: str) -> bool:
+        desired_norm = (desired or "").strip().lower()
+        if not desired_norm:
+            return False
+        suggestions = self.page.locator(suggestion_xpath)
+        try:
+            await suggestions.first.wait_for(state="visible", timeout=5000)
+        except Exception:
+            return False
+
+        items = await suggestions.all()
+        if not items:
+            return False
+
+        texts: List[str] = []
+        for item in items:
+            t = (await item.text_content()) or ""
+            t = re.sub(r"\s+", " ", t).strip()
+            texts.append(t)
+
+        distances = [
+            (idx, distance(desired_norm, (texts[idx] or "").lower())) for idx in range(len(texts))
+        ]
+        best_idx = min(distances, key=lambda x: x[1])[0]
+        try:
+            await items[best_idx].click()
+            await asyncio.sleep(0.5)
+            return True
+        except Exception:
+            return False
+
+    async def _set_keywords(self) -> None:
+        keywords = self.search_params.get("keywords") or self.search_params.get("text") or ""
+        keywords = str(keywords).strip()
+        if not keywords:
+            return
+        await safe_fill(
+            self.page, "[data-qa='vacancysearch__keywords-input']", keywords, timeout=10000
+        )
+        await asyncio.sleep(0.5)
+
+    async def _set_search_field(self) -> None:
+        search_field = self.search_params.get("search_field") or {}
+        enabled = set(self._true_keys(search_field))
+        if not enabled:
+            return
+
+        # Map yaml keys -> visible UI text (used in old selenium implementation)
+        text_map = {
+            "name": "в названии вакансии",
+            "company_name": "в названии компании",
+            "description": "в описании вакансии",
+        }
+        for key in ("name", "company_name", "description"):
+            if key not in enabled:
+                continue
+            # Best-effort click by visible text
+            await safe_click(
+                self.page,
+                f"xpath=//*[self::label or self::span or self::div][contains(., '{text_map[key]}')]",
+                timeout=5000,
+            )
+            await asyncio.sleep(0.2)
+
+    async def _set_words_to_exclude(self) -> None:
+        words = self.search_params.get("words_to_exclude") or ""
+        words = str(words).strip()
+        if not words:
+            return
+        await safe_fill(
+            self.page, "[data-qa='vacancysearch__keywords-excluded-input']", words, timeout=10000
+        )
+        await asyncio.sleep(0.5)
+
+    async def _set_tree_selector_single(self, open_text: str, value: str) -> None:
+        """
+        Open a "tree selector" modal (specialization/industry), type value, pick best match, submit.
+        """
+        value = str(value or "").strip()
+        if not value:
+            return
+
+        # Open modal
+        opened = False
+        for selector in (
+            f"xpath=//*[normalize-space()='{open_text}']",
+            f"xpath=//*[contains(., '{open_text}')]",
+        ):
+            if await safe_click(self.page, selector, timeout=5000):
+                opened = True
+                break
+        if not opened:
+            return
+
+        await asyncio.sleep(0.5)
+        search_input_xpath = "//*[@data-qa='tree-selector-search-input' or @data-qa='bloko-tree-selector-popup-search']"
+        await safe_fill(self.page, f"xpath={search_input_xpath}", value, timeout=10000)
+        await asyncio.sleep(0.8)
+
+        # Suggestions inside modal
+        suggestion_xpath = (
+            "//*[starts-with(@data-qa, 'tree-selector-item') "
+            "or starts-with(@data-qa, 'bloko-tree-selector-item-text') "
+            "or @data-qa='suggest-item-cell']"
+        )
+
+        picked = await self._click_best_suggestion(value, f"xpath={suggestion_xpath}")
+        if not picked:
+            # close/cancel modal if nothing found
+            await safe_click(
+                self.page,
+                "xpath=//*[@data-qa='composite-selection-tree-selector-modal-cancel' or @data-qa='bloko-tree-selector-popup-cancel']",
+                timeout=3000,
+            )
+            return
+
+        await asyncio.sleep(0.5)
+        await safe_click(
+            self.page,
+            "xpath=//*[@data-qa='composite-selection-tree-selector-modal-submit' or @data-qa='bloko-tree-selector-popup-submit']",
+            timeout=5000,
+        )
+        await asyncio.sleep(0.5)
+
+    async def _set_professional_role(self) -> None:
+        value = self.search_params.get("professional_role") or ""
+        value = str(value).strip()
+        if not value:
+            return
+        await self._set_tree_selector_single("Указать специализации", value)
+
+    async def _set_industry(self) -> None:
+        value = self.search_params.get("industry") or ""
+        value = str(value).strip()
+        if not value:
+            return
+        await self._set_tree_selector_single("Указать отрасль компании", value)
+
+    async def _set_area(self) -> None:
+        values = self._split_multi(self.search_params.get("area"))
+        if not values:
+            return
+
+        input_selector = "[data-qa='advanced-search-region-add'] input"
+        # Some HH versions use a custom input without <input>
+        if await self.page.locator(input_selector).count() == 0:
+            input_selector = "[data-qa='advanced-search-region-add']"
+
+        suggestion_xpath = (
+            "//*[@data-qa='suggest-item-cell' or @data-qa='suggester__keywords-item']"
+        )
+        for region in values:
+            if not region:
+                continue
+            if not await safe_fill(self.page, input_selector, region, timeout=10000):
+                await safe_click(self.page, input_selector, timeout=5000)
+                await self.page.keyboard.type(region)
+            await asyncio.sleep(0.7)
+            await self._click_best_suggestion(region, f"xpath={suggestion_xpath}")
+
+    async def _set_districts(self) -> None:
+        values = self._split_multi(self.search_params.get("districts"))
+        if not values:
+            return
+        input_selector = "[data-qa='searchform__district-input']"
+        if await self.page.locator(input_selector).count() == 0:
+            return
+
+        suggestion_xpath = (
+            "//*[@data-qa='suggest-item-cell' or @data-qa='address-edit-district-suggest-item']"
+        )
+        for district in values:
+            if not district:
+                continue
+            await safe_fill(self.page, input_selector, district, timeout=10000)
+            await asyncio.sleep(0.7)
+            await self._click_best_suggestion(district, f"xpath={suggestion_xpath}")
+
+    async def _set_metro(self) -> None:
+        values = self._split_multi(self.search_params.get("metro"))
+        if not values:
+            return
+        input_selector = "[data-qa='searchform__subway-input']"
+        if await self.page.locator(input_selector).count() == 0:
+            return
+
+        suggestion_xpath = (
+            "//*[@data-qa='suggest-item-cell' or @data-qa='address-edit-metro-suggest-item']"
+        )
+        for station in values:
+            if not station:
+                continue
+            await safe_fill(self.page, input_selector, station, timeout=10000)
+            await asyncio.sleep(0.7)
+            await self._click_best_suggestion(station, f"xpath={suggestion_xpath}")
+
+    async def _set_salary_and_currency(self) -> None:
+        salary = self.search_params.get("salary")
+        if salary is not None and salary != "":
+            try:
+                salary_val = str(int(salary))
+            except Exception:
+                salary_val = str(salary)
+            await safe_fill(
+                self.page, "[data-qa='advanced-search-salary']", salary_val, timeout=10000
+            )
+            await asyncio.sleep(0.2)
+
+        currency = self.search_params.get("currency") or {}
+        currency_key = self._first_true_key(currency)
+        if not currency_key:
+            return
+
+        # Best-effort: try native select first, then click by visible text.
+        select_locator = self.page.locator(
+            "select[name='currency'], [data-qa='advanced-search-currency'] select"
+        )
+        if await select_locator.count() > 0:
+            try:
+                await select_locator.first.select_option(currency_key)
+                await asyncio.sleep(0.2)
+                return
+            except Exception:
+                pass
+
+        text_map = {"RUR": "руб", "USD": "USD", "EUR": "EUR"}
+        await safe_click(
+            self.page,
+            f"xpath=//*[self::label or self::span or self::div][contains(translate(., 'РУБUSDЕUR', 'рубusdеur'), '{text_map.get(currency_key, currency_key).lower()}')]",
+            timeout=2000,
+        )
+
+    async def _set_only_with_salary(self) -> None:
+        only = self.search_params.get("only_with_salary")
+        if only is not True:
+            return
+        # HH text varies; try both common variants.
+        for t in (
+            "Только с зарплатой",
+            "Только с указанной зарплатой",
+            "Только с указанием зарплаты",
+        ):
+            if await safe_click(
+                self.page, f"xpath=//*[self::label or self::span][contains(., '{t}')]", timeout=2000
+            ):
+                await asyncio.sleep(0.2)
+                return
+
+    async def _set_education(self) -> None:
+        edu = self.search_params.get("education") or {}
+        mapping = {
+            "not_needed": "not_required_or_not_specified",
+            "middle": "special_secondary",
+            "higher": "higher",
+        }
+        for key in self._true_keys(edu):
+            suffix = mapping.get(key)
+            if not suffix:
+                continue
+            await safe_click(
+                self.page,
+                f"[data-qa='advanced-search__education-item-label_{suffix}']",
+                timeout=3000,
+            )
+
+    async def _set_experience(self) -> None:
+        exp = self.search_params.get("experience") or {}
+        key = self._first_true_key(exp)
+        if not key:
+            return
+        # YAML uses doesntMatter, HH uses doesNotMatter
+        if key == "doesntMatter":
+            key = "doesNotMatter"
+        await safe_click(
+            self.page, f"[data-qa='advanced-search__experience-item-label_{key}']", timeout=3000
+        )
+
+    async def _set_employment(self) -> None:
+        employment = self.search_params.get("employment") or {}
+        for key in self._true_keys(employment):
+            await safe_click(
+                self.page, f"[data-qa='advanced-search__employment-item-label_{key}']", timeout=3000
+            )
+
+    async def _set_schedule(self) -> None:
+        schedule = self.search_params.get("schedule") or {}
+        for key in self._true_keys(schedule):
+            await safe_click(
+                self.page, f"[data-qa='advanced-search__schedule-item-label_{key}']", timeout=3000
+            )
+
+    async def _set_part_time(self) -> None:
+        part_time = self.search_params.get("part_time") or {}
+        for key in self._true_keys(part_time):
+            await safe_click(
+                self.page, f"[data-qa='advanced-search__part_time-item-label_{key}']", timeout=3000
+            )
+
+    async def _set_vacancy_label(self) -> None:
+        labels = self.search_params.get("vacancy_label") or {}
+        for key in self._true_keys(labels):
+            await safe_click(
+                self.page, f"[data-qa='advanced-search__label-item-label_{key}']", timeout=3000
+            )
+
+    async def _set_order_by(self) -> None:
+        order_by = self.search_params.get("order_by") or {}
+        key = self._first_true_key(order_by)
+        if not key:
+            return
+        # relevance is typically default; still allow click if user asked.
+        await safe_click(
+            self.page, f"[data-qa='advanced-search__order_by-item-label_{key}']", timeout=3000
+        )
+
+    async def _set_period(self) -> None:
+        period = self.search_params.get("period") or {}
+        key = self._first_true_key(period)
+        if not key:
+            return
+        mapping = {
+            "all_time": "0",
+            "month": "30",
+            "week": "7",
+            "three_days": "3",
+            "one_day": "1",
+        }
+        days = mapping.get(key)
+        if days is None:
+            return
+        await safe_click(
+            self.page, f"[data-qa='advanced-search__search_period-item-label_{days}']", timeout=3000
+        )
 
     async def get_vacancies_from_page(self, page_num: int = 0) -> List[Dict[str, Any]]:
         """Получить вакансии с очередной страницы"""
