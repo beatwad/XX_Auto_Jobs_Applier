@@ -27,7 +27,6 @@ def mock_resume_data():
         "middle_name": "Smith",
         "next_publish_at": (datetime.now() - timedelta(hours=5)).isoformat(),
         "area": {"name": "Moscow"},
-        "metro": {"name": "Arbatskaya"},
         "birth_date": "15.06.1990",
         "age": 33,
         "gender": {"name": "Мужской"},
@@ -77,7 +76,7 @@ def mock_resume_data():
         },
         "professional_roles": [{"name": "Python Developer"}],
         "employments": [{"name": "Полная занятость"}],
-        "schedules": [{"name": "Удаленная работа"}],
+        "job_format": [{"name": "Удаленно"}],
         "travel_time": {"name": "Не имеет значения"},
         "business_trip_readiness": {"name": "Готов к редким командировкам"},
         "site": [
@@ -243,7 +242,6 @@ class TestResumeScraper:
         assert scraper.resume_info["personal_information"]["last_name"] == "Doe"
         assert scraper.resume_info["personal_information"]["middle_name"] == "Smith"
         assert scraper.resume_info["personal_information"]["current_city"] == "Moscow"
-        assert scraper.resume_info["personal_information"]["metro"] == "Arbatskaya"
         assert scraper.resume_info["personal_information"]["has_vehicle"] is True
         assert scraper.resume_info["personal_information"]["driver_license_types"] == ["B"]
         # assert scraper.resume_info["personal_information"]["birthday"] == "15.06.1990"

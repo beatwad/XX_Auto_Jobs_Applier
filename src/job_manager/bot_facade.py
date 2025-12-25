@@ -57,6 +57,7 @@ class BotFacade:
         parameters["resume_id"] = resume_id
         parameters["resume_titles"] = resume_titles
         self.apply_component.set_parameters(parameters)
+        self.search_component.set_search_parameters(parameters)
         self.state.parameters_set = True
         logger.info("Все параметры установлены успешно")
 
@@ -75,7 +76,6 @@ class BotFacade:
         """Задаем параметры поиска"""
         logger.info("Задаем параметры поиска")
         self._validate_non_empty(parameters, "Parameters")
-        self.search_component.set_advanced_search_params(parameters)
         self.state.search_parameters_set = True
         logger.info("Параметры поиска успешно установлены")
 

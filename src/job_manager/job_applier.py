@@ -157,7 +157,6 @@ class JobApplier:
 
     async def start_applying(self) -> None:
         """Разослать отклики всем работодателям на всех страницах"""
-
         # определяем время старта поиска
         if self.cache.get("last_run"):
             last_run = datetime.fromisoformat(self.cache["last_run"])

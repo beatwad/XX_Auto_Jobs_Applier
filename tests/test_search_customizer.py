@@ -48,9 +48,8 @@ def test_set_advanced_search_params(search_customizer, sample_resume):
         "search_field": {"name": True, "company_name": False, "description": True},
         "experience": {"noExperience": True, "between1And3": False},
         "employment": {"full": True, "part": False},
-        "schedule": {"remote": True, "flexible": False},
+        "job_format": {"remote": True, "flexible": False},
         "area": "Москва; Санкт-Петербург",
-        "metro": "Библиотека имени Ленина",
         "professional_role": "программист",
         "industry": "интернет,программное обеспечение",
         "salary": 150000,
@@ -59,7 +58,6 @@ def test_set_advanced_search_params(search_customizer, sample_resume):
         "only_with_salary": True,
         "period": {"week": True, "month": False},
         "order_by": {"publication_time": True, "salary_desc": False},
-        "part_time": {"project": True, "volunteer": False},
     }
 
     # Call the method (should store raw config as-is; UI setup is done by Playwright manager)

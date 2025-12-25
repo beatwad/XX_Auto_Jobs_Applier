@@ -14,6 +14,12 @@ class Currency(BaseModel):
     EUR: bool = False
     USD: bool = False
 
+    @model_validator(mode="after")
+    def validate_currency(cls, values):
+        if sum(values.__dict__.values()) > 1:
+            raise ValueError("Только одно значение настроек currency может быть True")
+        return values
+
 
 class Education(BaseModel):
     not_needed: bool = False
@@ -28,35 +34,27 @@ class Experience(BaseModel):
     between3And6: bool = False
     moreThan6: bool = False
 
-    # @model_validator(mode="after")
-    # def validate_experience(cls, values):
-    #     if sum(values.__dict__.values()) > 1:
-    #         raise ValueError("Только одно значение настроек experience может быть True")
-    #     return values
+    @model_validator(mode="after")
+    def validate_experience(cls, values):
+        if sum(values.__dict__.values()) > 1:
+            raise ValueError("Только одно значение настроек experience может быть True")
+        return values
 
 
 class Employment(BaseModel):
-    full: bool = False
-    part: bool = False
-    project: bool = False
-    volunteer: bool = False
-    probation: bool = False
+    FULL: bool = False
+    PART: bool = False
+    PROJECT: bool = False
+    FLY_IN_FLY_OUT: bool = False
+    INTERNSHIP: bool = False
+    ACCEPT_TEMPORARY: bool = False
 
 
-class Schedule(BaseModel):
-    fullDay: bool = False
-    shift: bool = False
-    flexible: bool = False
-    remote: bool = False
-    flyInFlyOut: bool = False
-
-
-class PartTime(BaseModel):
-    project: bool = False
-    part: bool = False
-    from_four_to_six_hours_in_a_day: bool = False
-    only_saturday_and_sunday: bool = False
-    start_after_sixteen: bool = False
+class JobFormat(BaseModel):
+    ON_SITE: bool = False
+    REMOTE: bool = False
+    HYBRID: bool = False
+    FIELD_WORK: bool = False
 
 
 class VacancyLabel(BaseModel):
@@ -64,6 +62,7 @@ class VacancyLabel(BaseModel):
     accept_handicapped: bool = False
     not_from_agency: bool = False
     accept_kids: bool = False
+    accept_teens: bool = False
     accredited_it: bool = False
     low_performance: bool = False
 
@@ -109,13 +108,11 @@ class SearchConfig(BaseModel):
     industry: Optional[str] = ""
     area: Optional[str] = ""
     districts: Optional[str] = ""
-    metro: Optional[str] = ""
     salary: Optional[int] = None
     only_with_salary: Optional[bool] = None
     currency: Optional[Currency] = None
     education: Optional[Education] = None
-    schedule: Optional[Schedule] = None
-    part_time: Optional[PartTime] = None
+    job_format: Optional[JobFormat] = None
     vacancy_label: Optional[VacancyLabel] = None
     job_blacklist: Optional[Union[str, List[str]]] = []
     order_by: Optional[OrderBy] = None

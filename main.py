@@ -106,7 +106,7 @@ async def create_and_run_bot(
             logger.warning("Последний поиск был меньше суток назад, завершаем работу")
             return
         await bot.set_resume()
-        await bot.set_search_parameters(parameters)
+        bot.set_search_parameters(parameters)
         bot.set_gpt_answerer(gpt_answerer_component, parameters)
         # bot.set_resume_generator(resume_generator_manager, gpt_resume_genarator)
         await bot.start_apply()

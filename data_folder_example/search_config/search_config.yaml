@@ -23,8 +23,6 @@ area:  Москва, Санкт-Петербург  # Регионы (списо
 
 districts: Северное Бутово, Замоскворечье, Чертаново  # Районы (список через запятую) - есть в интерфейсе, но по факту не участвует в поиске вакансий
 
-metro: Павелецкая, Новокосино, Комсомольская # Метро (список через запятую)
-
 salary: 300000  # Уровень дохода (целое число)
 
 only_with_salary: False  # Показывать только вакансии с указанным уровнем дохода
@@ -53,19 +51,12 @@ employment:  # Тип занятости
   volunteer: false  # Волонтерство
   probation: false  # Стажировка
 
-schedule:  # График работы
+job_format:  # График работы
   fullDay: true  # Полный день
   shift: false  # Сменный график
   flexible: false  # Гибкий график
   remote: true  # Удаленная работа
   flyInFlyOut: false  # Вахтовый метод
-
-part_time:  # Подработка
-  project: true  # Разовое задание или проект
-  part: true  # Неполный день
-  from_four_to_six_hours_in_a_day: false  # От 4 часов в день
-  only_saturday_and_sunday: false  # По выходным
-  start_after_sixteen: false  # По вечерам
 
 vacancy_label:  # Другие параметры
   with_address: true  # С адресом

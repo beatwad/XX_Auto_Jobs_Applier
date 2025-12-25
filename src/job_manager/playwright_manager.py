@@ -128,6 +128,7 @@ class PlaywrightJobManager:
         logger.info("Navigating to login page...")
         try:
             await self.page.goto("https://hh.ru/employer", timeout=10000)
+            logger.info("Переход на страницу: https://hh.ru/employer")
         except Exception as e:
             logger.warning(f"Failed to navigate to login page: {e}")
             logger.info("Trying to continue...")
@@ -290,30 +291,26 @@ class PlaywrightJobManager:
     async def start_search(self, resume_id: str) -> None:
         url = f"https://hh.ru/resume/{resume_id}"
         await self.page.goto(url)
-        await asyncio.sleep(2)
-
+        logger.info(f"Переход на страницу: {url}")
         recommend_button = self.page.locator("xpath=//*[contains(text(), 'Подобрали для вас')]")
         if await recommend_button.count() > 0:
             await recommend_button.click()
 
-    async def set_advanced_search_params(self, search_params: Dict[str, Any]) -> None:
+    async def set_advanced_search_params(
+        self, search_params: Dict[str, Any], resume_id: str
+    ) -> None:
         """
         Зайти на страницу расширенного поиска hh.ru и выставить настройки из `search_config.yaml`.
 
         `search_params` ожидается в "сыром" виде (как в YAML / `SearchConfig.model_dump()`).
         """
-        if not self.page:
-            await self.initialize()
-        await self.ensure_logged_in()
-
         self.search_params = search_params or {}
-        await self._handle_interfering_messages()
-
-        # 1) Open advanced search page
+        await self.start_search(resume_id)
         opened = False
+        await self.pause_async(3, 4)
         for selector in (
-            "[aria-label='Расширенный поиск']",
             "[data-qa='advanced-search']",
+            "[aria-label='Расширенный поиск']",
             "xpath=//*[contains(., 'Расширенный поиск')]",
         ):
             if await safe_click(self.page, selector, timeout=5000):
@@ -323,9 +320,8 @@ class PlaywrightJobManager:
         if not opened:
             logger.warning("Advanced search button not found; trying to open advanced search URL")
             try:
-                await self.page.goto(
-                    "https://hh.ru/search/vacancy/advanced", wait_until="domcontentloaded"
-                )
+                await self.page.goto("https://hh.ru/search/vacancy/advanced")
+                logger.info("Переход на страницу: https://hh.ru/search/vacancy/advanced")
             except Exception as e:
                 logger.error(f"Failed to navigate to advanced search page: {e}")
                 return
@@ -342,6 +338,7 @@ class PlaywrightJobManager:
         await self._handle_interfering_messages()
 
         # 2) Apply settings (best-effort for each block)
+        # TODO: добавить частоту выплат, график работы, рабочие часы, категорию прав
         await self._set_keywords()
         await self._set_search_field()
         await self._set_words_to_exclude()
@@ -349,14 +346,12 @@ class PlaywrightJobManager:
         await self._set_industry()
         await self._set_area()
         await self._set_districts()
-        await self._set_metro()
         await self._set_salary_and_currency()
         await self._set_only_with_salary()
         await self._set_education()
         await self._set_experience()
         await self._set_employment()
-        await self._set_schedule()
-        await self._set_part_time()
+        await self._set_job_format()
         await self._set_vacancy_label()
         await self._set_order_by()
         await self._set_period()
@@ -430,6 +425,7 @@ class PlaywrightJobManager:
             return False
 
     async def _set_keywords(self) -> None:
+        logger.debug("Вводим ключевые слова")
         keywords = self.search_params.get("keywords") or self.search_params.get("text") or ""
         keywords = str(keywords).strip()
         if not keywords:
@@ -437,32 +433,50 @@ class PlaywrightJobManager:
         await safe_fill(
             self.page, "[data-qa='vacancysearch__keywords-input']", keywords, timeout=10000
         )
+        # await self.pause_async(0.5, 1)
+        # await self.page.keyboard.press("ArrowDown")
+        # await self.pause_async(0.5, 1)
+        # await self.page.keyboard.press("Enter")
+        suggestion_xpath = (
+            "//*[@data-qa='suggest-item-cell' or @data-qa='suggester__keywords-item']"
+        )
+        await self._click_best_suggestion(keywords, f"xpath={suggestion_xpath}")
         await asyncio.sleep(0.5)
 
     async def _set_search_field(self) -> None:
+        logger.debug("Задаем настройки области поиска")
         search_field = self.search_params.get("search_field") or {}
         enabled = set(self._true_keys(search_field))
         if not enabled:
             return
 
-        # Map yaml keys -> visible UI text (used in old selenium implementation)
-        text_map = {
-            "name": "в названии вакансии",
-            "company_name": "в названии компании",
-            "description": "в описании вакансии",
-        }
+        # New HH advanced search uses checkbox inputs: name="search_field", value in {name, company_name, description}
+        # Click by input/label first (more stable than text), then fallback to old text-based clicking.
         for key in ("name", "company_name", "description"):
             if key not in enabled:
                 continue
-            # Best-effort click by visible text
-            await safe_click(
+
+            clicked = await safe_click(
                 self.page,
-                f"xpath=//*[self::label or self::span or self::div][contains(., '{text_map[key]}')]",
+                f"xpath=//label[.//input[@name='search_field' and @value='{key}']]",
                 timeout=5000,
             )
+            if not clicked:
+                # Old selenium-era fallback: click by visible text
+                text_map = {
+                    "name": "в названии вакансии",
+                    "company_name": "в названии компании",
+                    "description": "в описании вакансии",
+                }
+                await safe_click(
+                    self.page,
+                    f"xpath=//*[self::label or self::span or self::div][contains(., '{text_map[key]}')]",
+                    timeout=5000,
+                )
             await asyncio.sleep(0.2)
 
     async def _set_words_to_exclude(self) -> None:
+        logger.debug("Задаем слова для исключения")
         words = self.search_params.get("words_to_exclude") or ""
         words = str(words).strip()
         if not words:
@@ -523,6 +537,7 @@ class PlaywrightJobManager:
         await asyncio.sleep(0.5)
 
     async def _set_professional_role(self) -> None:
+        logger.debug("Задаем профессиональную роль")
         value = self.search_params.get("professional_role") or ""
         value = str(value).strip()
         if not value:
@@ -530,6 +545,7 @@ class PlaywrightJobManager:
         await self._set_tree_selector_single("Указать специализации", value)
 
     async def _set_industry(self) -> None:
+        logger.debug("Задаем отрасль")
         value = self.search_params.get("industry") or ""
         value = str(value).strip()
         if not value:
@@ -537,6 +553,7 @@ class PlaywrightJobManager:
         await self._set_tree_selector_single("Указать отрасль компании", value)
 
     async def _set_area(self) -> None:
+        logger.debug("Задаем регион")
         values = self._split_multi(self.search_params.get("area"))
         if not values:
             return
@@ -559,6 +576,7 @@ class PlaywrightJobManager:
             await self._click_best_suggestion(region, f"xpath={suggestion_xpath}")
 
     async def _set_districts(self) -> None:
+        logger.debug("Задаем районы")
         values = self._split_multi(self.search_params.get("districts"))
         if not values:
             return
@@ -576,25 +594,8 @@ class PlaywrightJobManager:
             await asyncio.sleep(0.7)
             await self._click_best_suggestion(district, f"xpath={suggestion_xpath}")
 
-    async def _set_metro(self) -> None:
-        values = self._split_multi(self.search_params.get("metro"))
-        if not values:
-            return
-        input_selector = "[data-qa='searchform__subway-input']"
-        if await self.page.locator(input_selector).count() == 0:
-            return
-
-        suggestion_xpath = (
-            "//*[@data-qa='suggest-item-cell' or @data-qa='address-edit-metro-suggest-item']"
-        )
-        for station in values:
-            if not station:
-                continue
-            await safe_fill(self.page, input_selector, station, timeout=10000)
-            await asyncio.sleep(0.7)
-            await self._click_best_suggestion(station, f"xpath={suggestion_xpath}")
-
     async def _set_salary_and_currency(self) -> None:
+        logger.debug("Задаем зарплату и валюту")
         salary = self.search_params.get("salary")
         if salary is not None and salary != "":
             try:
@@ -611,7 +612,18 @@ class PlaywrightJobManager:
         if not currency_key:
             return
 
-        # Best-effort: try native select first, then click by visible text.
+        # New HH UI uses "chips" with radio inputs: name="currency_code", data-qa="currency-code-RUR|EUR|USD"
+        # Prefer clicking the label that contains the radio input (inputs may be visually hidden).
+        clicked = await safe_click(
+            self.page,
+            f"xpath=//label[.//input[@name='currency_code' and (@value='{currency_key}' or @data-qa='currency-code-{currency_key}')]]",
+            timeout=3000,
+        )
+        if clicked:
+            await asyncio.sleep(0.2)
+            return
+
+        # Fallback: some older versions use a <select> or different container
         select_locator = self.page.locator(
             "select[name='currency'], [data-qa='advanced-search-currency'] select"
         )
@@ -631,22 +643,36 @@ class PlaywrightJobManager:
         )
 
     async def _set_only_with_salary(self) -> None:
+        logger.debug("Задаем фильтр только с зарплатой")
         only = self.search_params.get("only_with_salary")
         if only is not True:
             return
-        # HH text varies; try both common variants.
+        # New HH UI: checkbox is input name="label" value="with_salary"
+        if await safe_click(
+            self.page,
+            "xpath=//label[.//input[@name='label' and @value='with_salary']]",
+            timeout=3000,
+        ):
+            await asyncio.sleep(0.2)
+            return
+
+        # Fallback: click by likely text (older versions)
         for t in (
             "Только с зарплатой",
             "Только с указанной зарплатой",
             "Только с указанием зарплаты",
+            "Показывать только вакансии",
         ):
             if await safe_click(
-                self.page, f"xpath=//*[self::label or self::span][contains(., '{t}')]", timeout=2000
+                self.page,
+                f"xpath=//*[self::label or self::span or self::div][contains(., '{t}')]",
+                timeout=2000,
             ):
                 await asyncio.sleep(0.2)
                 return
 
     async def _set_education(self) -> None:
+        logger.debug("Задаем образование")
         edu = self.search_params.get("education") or {}
         mapping = {
             "not_needed": "not_required_or_not_specified",
@@ -664,6 +690,7 @@ class PlaywrightJobManager:
             )
 
     async def _set_experience(self) -> None:
+        logger.debug("Задаем опыт работы")
         exp = self.search_params.get("experience") or {}
         key = self._first_true_key(exp)
         if not key:
@@ -676,34 +703,65 @@ class PlaywrightJobManager:
         )
 
     async def _set_employment(self) -> None:
+        logger.debug("Задаем тип занятости")
         employment = self.search_params.get("employment") or {}
-        for key in self._true_keys(employment):
-            await safe_click(
-                self.page, f"[data-qa='advanced-search__employment-item-label_{key}']", timeout=3000
-            )
+        enabled = self._true_keys(employment)
+        if not enabled:
+            return
 
-    async def _set_schedule(self) -> None:
-        schedule = self.search_params.get("schedule") or {}
-        for key in self._true_keys(schedule):
-            await safe_click(
-                self.page, f"[data-qa='advanced-search__schedule-item-label_{key}']", timeout=3000
-            )
+        for key in enabled:
+            if key == "ACCEPT_TEMPORARY":
+                await safe_click(
+                    self.page,
+                    "[data-qa='advanced-search__accept_temporary-item']",
+                    timeout=3000,
+                )
+                await asyncio.sleep(0.2)
+                continue
 
-    async def _set_part_time(self) -> None:
-        part_time = self.search_params.get("part_time") or {}
-        for key in self._true_keys(part_time):
+            if key == "INTERNSHIP":
+                await safe_click(
+                    self.page,
+                    "xpath=//label[.//input[@name='label' and @value='internship']]",
+                    timeout=3000,
+                )
+                await asyncio.sleep(0.2)
+                continue
+
             await safe_click(
-                self.page, f"[data-qa='advanced-search__part_time-item-label_{key}']", timeout=3000
+                self.page,
+                f"xpath=//label[.//input[@name='employment_form' and @value='{key}']]",
+                timeout=3000,
             )
+            await asyncio.sleep(0.2)
+
+    async def _set_job_format(self) -> None:
+        logger.debug("Задаем формат работы")
+        job_format = self.search_params.get("job_format") or {}
+        enabled = self._true_keys(job_format)
+        if not enabled:
+            return
+
+        for key in enabled:
+            if await safe_click(
+                self.page,
+                f"[data-qa='advanced-search__work_format-item-label_{key}']",
+                timeout=1500,
+            ):
+                await asyncio.sleep(0.2)
+                continue
 
     async def _set_vacancy_label(self) -> None:
+        logger.debug("Задаем метки вакансий")
         labels = self.search_params.get("vacancy_label") or {}
         for key in self._true_keys(labels):
             await safe_click(
                 self.page, f"[data-qa='advanced-search__label-item-label_{key}']", timeout=3000
             )
+            # advanced-search__label-item-label_accept_teens
 
     async def _set_order_by(self) -> None:
+        logger.debug("Задаем сортировку")
         order_by = self.search_params.get("order_by") or {}
         key = self._first_true_key(order_by)
         if not key:
@@ -714,6 +772,7 @@ class PlaywrightJobManager:
         )
 
     async def _set_period(self) -> None:
+        logger.debug("Задаем период поиска")
         period = self.search_params.get("period") or {}
         key = self._first_true_key(period)
         if not key:
@@ -742,6 +801,7 @@ class PlaywrightJobManager:
             await self.initialize()
 
         await self.page.goto(vacancy_url)
+        logger.info(f"Переход на страницу: {vacancy_url}")
         description = ""
         desc_el = self.page.locator('[data-qa="vacancy-description"]')
         if await desc_el.count() > 0:
@@ -772,6 +832,7 @@ class PlaywrightJobManager:
         """
         if self.page.url != vacancy_url:
             await self.page.goto(vacancy_url)
+            logger.info(f"Переход на страницу: {vacancy_url}")
 
         await self.pause_async()
 
@@ -891,6 +952,7 @@ class PlaywrightJobManager:
         clicked = await safe_click(self.page, menu_selector, timeout=5000)
         if not clicked:
             await self.page.goto("https://hh.ru")
+            logger.info("Переход на страницу: https://hh.ru")
             await asyncio.sleep(1)
             await safe_click(self.page, menu_selector, timeout=5000)
         # Wait until resume cards are visible on the resumes/profile page
@@ -948,12 +1010,12 @@ class PlaywrightJobManager:
         We keep backward compatibility by returning API-shaped data when possible,
         and always attaching scraped sections under `scraped_sections`.
         """
-
         resume = {}
 
         user_profile_url = "https://hh.ru/profile/me"
-        await self.page.goto(user_profile_url, wait_until="domcontentloaded")
-        await asyncio.sleep(2)
+        await self.page.goto(user_profile_url)
+        logger.info(f"Переход на страницу: {user_profile_url}")
+        # await self.pause_async(3, 4)
 
         resume["personal_information"] = {}
         resume["personal_information"]["first_name"] = await self._get_first_name()
@@ -967,9 +1029,8 @@ class PlaywrightJobManager:
             resume["personal_information"]["linkedin"] = linkedin
         if habr_career:
             resume["personal_information"]["habr_career"] = habr_career
-
         await safe_click(self.page, "[data-qa='profile-common-card-edit']", timeout=5000)
-        await asyncio.sleep(1)
+        await self.pause_async(2, 3)
         middle_name = await self._get_middle_name()
         if middle_name:
             resume["personal_information"]["middle_name"] = middle_name
@@ -986,8 +1047,9 @@ class PlaywrightJobManager:
             resume["legal_authorization"] = legal_auth
 
         resume_url = f"https://hh.ru/resume/{resume_id}"
-        await self.page.goto(resume_url, wait_until="domcontentloaded")
-        await asyncio.sleep(2)
+        await self.page.goto(resume_url)
+        logger.info(f"Переход на страницу: {resume_url}")
+        await self.pause_async(2, 3)
 
         resume["personal_information"]["phone"] = await self._get_resume_phone()
         resume["personal_information"]["email"] = await self._get_resume_email()
@@ -1010,8 +1072,9 @@ class PlaywrightJobManager:
         await self.raise_resume()
 
         resume_url = f"https://hh.ru/resume/edit/{resume_id}/about"
-        await self.page.goto(resume_url, wait_until="domcontentloaded")
-        await asyncio.sleep(2)
+        await self.page.goto(resume_url)
+        logger.info(f"Переход на страницу: {resume_url}")
+        await self.pause_async(2, 3)
         resume["about_me"] = await self._get_about_me()
         return resume
 

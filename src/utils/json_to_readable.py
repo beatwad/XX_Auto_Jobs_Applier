@@ -338,7 +338,7 @@ def transform_resume_data(data: dict) -> str:
 
         for key, label in [
             ("employments", "Типы занятости"),
-            ("schedules", "Графики работы"),
+            ("job_format", "Формат работы"),
             ("professional_roles", "Профессиональные роли"),
         ]:
             val_list = _format_value(wp.get(key, []))
@@ -453,9 +453,9 @@ def transform_vacancy_data(data: dict) -> str:
     if work_format:
         wc_lines.append(f"  Формат работы: {work_format}")
 
-    work_schedule = _format_value(data.get("work_schedule_by_days", []))
-    if work_schedule:
-        wc_lines.append(f"  График работы: {work_schedule}")
+    job_format = _format_value(data.get("job_format", []))
+    if job_format:
+        wc_lines.append(f"  Формат работы: {job_format}")
 
     if wc_lines:
         content_lines.append("\nУСЛОВИЯ РАБОТЫ:")
@@ -569,7 +569,6 @@ def transform_search_config_data(data: dict) -> str:
         ("professional_role", "Специализация"),
         ("industry", "Отрасль компании"),
         ("area", "Регионы"),
-        ("metro", "Метро"),
     ]:
         val = _format_value(data.get(key))
         if val:
@@ -633,37 +632,26 @@ def transform_search_config_data(data: dict) -> str:
     # --- Условия работы ---
     sc_work_cond_lines = []
     employment_map = {
-        "full": "Полная занятость",
-        "part": "Частичная занятость",
-        "project": "Проектная работа/разовое задание",
-        "volunteer": "Волонтерство",
-        "probation": "Стажировка",
+        "FULL": "Полная занятость",
+        "PART": "Частичная занятость",
+        "PROJECT": "Проектная работа/разовое задание",
+        "FLY_IN_FLY_OUT": "Вахта",
+        "INTERNSHIP": "Стажировка",
+        "ACCEPT_TEMPORARY": "Оформление по ГПХ",
     }
     selected_employment = _get_multiple_selected_options(data.get("employment", {}), employment_map)
     if selected_employment:
         sc_work_cond_lines.append(f"  Тип занятости: {selected_employment}")
 
-    schedule_map = {
-        "fullDay": "Полный день",
-        "shift": "Сменный график",
-        "flexible": "Гибкий график",
-        "remote": "Удаленная работа",
-        "flyInFlyOut": "Вахтовый метод",
+    job_format_map = {
+        "ON_SITE": "На месте работодателя",
+        "REMOTE": "Удаленно",
+        "HYBRID": "Гибрид",
+        "FIELD_WORK": "Разъездной",
     }
-    selected_schedule = _get_multiple_selected_options(data.get("schedule", {}), schedule_map)
-    if selected_schedule:
-        sc_work_cond_lines.append(f"  График работы: {selected_schedule}")
-
-    part_time_map = {
-        "project": "Разовое задание или проект",
-        "part": "Неполный день",
-        "from_four_to_six_hours_in_a_day": "От 4 часов в день",
-        "only_saturday_and_sunday": "По выходным",
-        "start_after_sixteen": "По вечерам",
-    }
-    selected_part_time = _get_multiple_selected_options(data.get("part_time", {}), part_time_map)
-    if selected_part_time:
-        sc_work_cond_lines.append(f"  Подработка: {selected_part_time}")
+    selected_job_format = _get_multiple_selected_options(data.get("job_format", {}), job_format_map)
+    if selected_job_format:
+        sc_work_cond_lines.append(f"  Формат работы: {selected_job_format}")
 
     if sc_work_cond_lines:
         content_lines.append("\nУСЛОВИЯ РАБОТЫ:")
@@ -793,7 +781,6 @@ personal_information:
   - Россия
   linkedin: https://linkedin.com/in/aristaniy-zvyagoltsev-f3e57c712
   livejournal: https://aristaniy93.livejournal.com
-  metro: ''
   middle_name: Астромерович
   moi_krug: https://moi-krug.ru/aristaniy93
   other_site: https://www.aristaniy93.ru
@@ -840,9 +827,11 @@ work_preferences:
   - Аналитик
   - Программист, разработчик
   ready_to_business_trips: не готов к командировкам
-  schedules:
-  - Полный день
-  - Удаленная работа
+  job_format:
+  - На месте работодателя
+  - Удаленно
+  - Гибрид
+  - Разъездной
   travel_time_to_work: Не более часа
 """
     resume_data = yaml.safe_load(resume_yaml_content)
@@ -897,10 +886,8 @@ salary:
   gross: false
   to: 400000
 vacancy_id: '121118419'
-work_format:
+job_format:
 - Удалённо
-work_schedule_by_days:
-- 5/2
 """
     vacancy_data = yaml.safe_load(vacancy_yaml_content)
 
@@ -916,7 +903,6 @@ professional_role: Программист
 industry: Банк, Финансовые услуги
 area:  Москва, Санкт-Петербург
 districts: Северное Бутово, Замоскворечье, Чертаново
-metro: Павелецкая, Новокосино, Комсомольская
 salary: 300000
 only_with_salary: False
 currency:
@@ -934,23 +920,16 @@ experience:
   between3And6: false
   moreThan6: false
 employment:
-  full: true
-  part: true
-  project: false
-  volunteer: false
-  probation: false
+  FULL: true
+  PART: true
+  PROJECT: false
+  FLY_IN_FLY_OUT: false
+  ACCEPT_TEMPORARY: false
 schedule:
-  fullDay: true
-  shift: false
-  flexible: false
-  remote: true
-  flyInFlyOut: false
-part_time:
-  project: true
-  part: true
-  from_four_to_six_hours_in_a_day: false
-  only_saturday_and_sunday: false
-  start_after_sixteen: false
+  ON_SITE: true
+  REMOTE: true
+  HYBRID: false
+  FIELD_WORK: false
 label:
   with_address: true
   accept_handicapped: false
