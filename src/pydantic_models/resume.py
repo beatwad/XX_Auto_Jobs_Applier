@@ -1,19 +1,28 @@
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class ResumeContacts(BaseModel):
-    """Contacts scraped from HH profile/resume pages."""
+class PersonalInformation(BaseModel):
+    """Personal information scraped from the resume."""
 
     model_config = ConfigDict(extra="allow")
 
-    telegram: str = ""
-    whatsapp: str = ""
-    phone: str = ""
-    email: str = ""
+    first_name: str
+    last_name: str
+    email: Optional[str] = None
+    middle_name: Optional[str] = None
+    telegram: Optional[str] = None
+    whatsapp: Optional[str] = None
+    phone: Optional[str] = None
+    linkedin: Optional[str] = None
+    habr_career: Optional[str] = None
+    sex: Optional[str] = None
+    citizenship: Optional[str] = None
+    legal_authorization: Optional[str] = None
+    has_vehicle: Optional[bool] = None
 
 
 class JobPreferences(BaseModel):
@@ -21,11 +30,11 @@ class JobPreferences(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    job_type: str = ""
-    job_format: str = ""
-    time_to_travel: str = ""
-    readiness_to_job_trips: str = ""
-    salary: str = ""
+    job_type: Optional[str] = None
+    job_format: Optional[str] = None
+    time_to_travel: Optional[str] = None
+    readiness_to_job_trips: Optional[str] = None
+    salary: Optional[str] = None
 
 
 class Resume(BaseModel):
@@ -39,27 +48,23 @@ class Resume(BaseModel):
 
     model_config = ConfigDict(extra="allow")
 
-    # Profile basics
-    first_name: str = ""
-    last_name: str = ""
-    area: str = ""
-    driving_license: str = ""
-
-    # Contacts & preferences
-    contacts: ResumeContacts = Field(default_factory=ResumeContacts)
+    # Nested structures
+    personal_information: PersonalInformation = Field(default_factory=PersonalInformation)
     job_preferences: JobPreferences = Field(default_factory=JobPreferences)
 
-    # Core resume sections (currently scraped as plain text blobs)
-    total_experience: str = ""
-    experience: str = ""
-    skills: str = ""
-    educations: str = ""
-    recommendations: str = ""
-    additional_education: str = ""
-    exams: str = ""
-    certificates: str = ""
-    about_me: str = ""
+    # Top-level scraped fields
+    area: Optional[str] = None
+    driving_license: Optional[str] = None
+    citizenship: Optional[str] = None
+    legal_authorization: Optional[str] = None
 
-    # Optional / API-shaped compatibility fields (may be present in other flows)
-    next_publish_at: Optional[str] = None
-    personal_information: Optional[Dict[str, Any]] = None
+    # Core resume sections
+    total_experience: Optional[str] = None
+    experience: Optional[str] = None
+    skills: Optional[str] = None
+    educations: Optional[str] = None
+    recommendations: Optional[str] = None
+    additional_education: Optional[str] = None
+    exams: Optional[str] = None
+    certificates: Optional[str] = None
+    about_me: Optional[str] = None

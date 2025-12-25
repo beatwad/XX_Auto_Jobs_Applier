@@ -2,6 +2,7 @@ import asyncio
 import os
 import random
 import re
+import urllib.parse
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -18,6 +19,7 @@ from src.utils.browser_utils import (
     get_clean_text,
 )
 from src.utils.utils import sanitize_text
+from src.pydantic_models.resume import Resume
 
 
 class PlaywrightJobManager:
@@ -793,22 +795,138 @@ class PlaywrightJobManager:
 
     async def get_vacancies_from_page(self, page_num: int = 0) -> List[Dict[str, Any]]:
         """Получить вакансии с очередной страницы"""
-        return await self.page.locator('[data-qa="vacancy"]').all()
-
-    async def get_vacancy_full_info(self, vacancy_url: str) -> Dict[str, Any]:
-        """Get full vacancy info for LLM."""
         if not self.page:
             await self.initialize()
 
+        # Pagination logic: check if we are on the requested page
+        try:
+            current_url = self.page.url
+            if "hh.ru" in current_url:
+                parsed = urllib.parse.urlparse(current_url)
+                query = urllib.parse.parse_qs(parsed.query)
+                current_page_param = query.get("page", ["0"])[0]
+
+                if int(current_page_param) != page_num:
+                    query["page"] = [str(page_num)]
+                    new_query = urllib.parse.urlencode(query, doseq=True)
+                    new_url = urllib.parse.urlunparse(parsed._replace(query=new_query))
+                    logger.info(f"Переходим на страницу {page_num}: {new_url}")
+                    await self.page.goto(new_url)
+                    await asyncio.sleep(2)
+        except Exception as e:
+            logger.warning(f"Error handling pagination: {e}")
+
+        vacancies = []
+        # New selector based on Magritte redesign
+        cards = await self.page.locator('[data-qa="vacancy-serp__vacancy"]').all()
+
+        logger.info(f"Найдено {len(cards)} вакансий на странице {page_num}")
+
+        for card in cards:
+            vac = await self._parse_vacancy_card(card)
+            if vac:
+                vacancies.append(vac)
+
+        return vacancies
+
+    async def _parse_vacancy_card(self, card: Locator) -> Optional[Dict[str, Any]]:
+        """Parse a single vacancy card from SERP."""
+        try:
+            # Title element
+            title_el = card.locator('[data-qa="serp-item__title"]').first
+            if await title_el.count() == 0:
+                return None
+
+            title = await get_clean_text(title_el)
+            href = await title_el.get_attribute("href")
+            if not href:
+                return None
+
+            # Full URL
+            if not href.startswith("http"):
+                full_url = "https://hh.ru" + href
+            else:
+                full_url = href
+
+            # Vacancy ID
+            vacancy_id = None
+            # ID is usually in URL path /vacancy/123456
+            match = re.search(r"vacancy/(\d+)", full_url)
+            if match:
+                vacancy_id = match.group(1)
+
+            # Employer
+            employer_name = "Unknown"
+            employer_id = None
+            emp_el = card.locator('[data-qa="vacancy-serp__vacancy-employer"]').first
+            if await emp_el.count() > 0:
+                employer_name = await get_clean_text(emp_el)
+                emp_href = await emp_el.get_attribute("href")
+                if emp_href:
+                    match_emp = re.search(r"employer/(\d+)", emp_href)
+                    if match_emp:
+                        employer_id = match_emp.group(1)
+
+            return {
+                "name": title,
+                "id": vacancy_id,
+                "alternate_url": full_url,
+                "employer": {
+                    "id": employer_id,
+                    "name": employer_name,
+                },
+            }
+        except Exception as e:
+            logger.warning(f"Failed to parse vacancy card: {e}")
+            return None
+
+    async def get_vacancy_full_info(self, vacancy_url: str) -> Dict[str, Any]:
+        """Get full vacancy info for LLM."""
         await self.page.goto(vacancy_url)
         logger.info(f"Переход на страницу: {vacancy_url}")
-        description = ""
-        desc_el = self.page.locator('[data-qa="vacancy-description"]')
-        if await desc_el.count() > 0:
-            description = await get_clean_text(desc_el)
+
+        async def get_text_or_empty(selector: str) -> str:
+            el = self.page.locator(selector)
+            if await el.count() > 0:
+                return await get_clean_text(el.first)
+            return ""
+
+        description = await get_text_or_empty('[data-qa="vacancy-description"]')
+        title = await get_text_or_empty('[data-qa="vacancy-title"]')
+
+        # Skills
+        skills_list = []
+        skills_els = self.page.locator('[data-qa="skills-element"]')
+        count = await skills_els.count()
+        for i in range(count):
+            skills_list.append(await get_clean_text(skills_els.nth(i)))
+        skills = ", ".join(skills_list)
+
+        # Header details
+        experience = await get_text_or_empty('[data-qa="work-experience-text"]')
+        employment = await get_text_or_empty('[data-qa="common-employment-text"]')
+        hiring_formats = await get_text_or_empty('[data-qa="vacancy-hiring-formats"]')
+        schedule = await get_text_or_empty('[data-qa="work-schedule-by-days-text"]')
+        working_hours = await get_text_or_empty('[data-qa="working-hours-text"]')
+        work_formats = await get_text_or_empty('[data-qa="work-formats-text"]')
+
+        # Salary
+        salary = await get_text_or_empty('[data-qa="vacancy-salary"]')
+        if not salary:
+            # Fallback based on snippet structure (Magritte)
+            salary = await get_text_or_empty("xpath=//div[contains(@class, 'vacancy-title')]/span")
 
         return {
+            "title": title,
+            "salary": salary,
+            "experience": experience,
+            "employment": employment,
+            "hiring_formats": hiring_formats,
+            "schedule": schedule,
+            "working_hours": working_hours,
+            "work_formats": work_formats,
             "description": description,
+            "skills": skills,
         }
 
     async def _handle_interfering_messages(self):
@@ -1076,7 +1194,7 @@ class PlaywrightJobManager:
         logger.info(f"Переход на страницу: {resume_url}")
         await self.pause_async(2, 3)
         resume["about_me"] = await self._get_about_me()
-        return resume
+        return Resume(**resume).model_dump()
 
     async def raise_resume(self) -> None:
         """Raise resume in search."""

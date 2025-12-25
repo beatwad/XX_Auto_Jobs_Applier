@@ -25,6 +25,7 @@ from src.utils.utils import (
     save_yaml_file,
     sleep,
 )
+from src.pydantic_models.job import Job
 
 search_config = load_yaml_file(SEARCH_CONFIG_FILE)
 FIXED_COVER_LETTER = search_config.get("cover_letter")
@@ -52,7 +53,6 @@ class JobApplier:
     def set_parameters(self, parameters: Dict[str, Any]):
         """Установка параметрок поиска"""
         logger.info("Установка параметров JobApplier")
-        self.user_id = parameters["user_id"]
         self.hh_login = parameters.get("hh_login", "")
         self.hh_password = parameters.get("hh_password", "")
         self.resume_id = parameters["resume_id"]
@@ -124,21 +124,17 @@ class JobApplier:
         if "employer" in vacancy and vacancy["employer"]:
             job["company_id"] = vacancy["employer"].get("id")
             job["company_name"] = vacancy["employer"]["name"]
-            job["accredited_it_employer"] = vacancy["employer"].get("accredited_it_employer", False)
         else:
             job["company_id"] = None
             job["company_name"] = "Unknown"
-            job["accredited_it_employer"] = False
 
         # Fetch full details via Playwright
         try:
             full_info = await self.manager.get_vacancy_full_info(vacancy["alternate_url"])
-            job["job_description"] = re.sub(r"<[^>]+>", "", full_info.get("description", ""))
-            job["has_test_task"] = False  # Simplified for now, scraping this is harder
+            job = {**job, **full_info}
         except Exception as e:
             logger.error(f"Failed to scrape vacancy details: {e}")
-            job["job_description"] = ""
-
+        job = Job(**job).model_dump()
         return job
 
     def resume_improvement_recommendations(self) -> None:
@@ -235,9 +231,6 @@ class JobApplier:
             apply_result = "Skip", "Вакансия в черном списке"
             logger.warning("Вакансия в черном списке, пропускаем")
             pause(1, 2)
-        elif (not self.hh_login or not self.hh_password) and job.get("has_test_task"):
-            # For now assume has_test_task is checked in apply flow or ignored
-            pass
 
         is_applied, reason = self._is_already_applied_to_job_or_company(job)
         if is_applied:

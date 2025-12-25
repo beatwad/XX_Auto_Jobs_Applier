@@ -6,10 +6,10 @@
 
 job_title: Программист Python  # Должность (обязательное поле, должно совпадать с названием одного из резюме на сайте hh.ru)
 
-keywords:  Аналитик, программист # Ключевые слова для поиска (список через запятую)
+keywords:  Программист # Ключевые слова для поиска (список через запятую)
 
 search_field:  # Искать только
-  name: false  # в названии вакансии
+  name: true  # в названии вакансии
   company_name: true  # в названии компании
   description: true  # в описании вакансии
 
@@ -17,7 +17,7 @@ words_to_exclude: Google, Meta  # Исключить слова (список ч
 
 professional_role: Программист  # Специализация
 
-industry: Банк, Финансовые услуги  # Отрасль компании
+industry: Финансовые услуги  # Отрасль компании
 
 area:  Москва, Санкт-Петербург  # Регионы (список через запятую)
 
@@ -28,14 +28,14 @@ salary: 300000  # Уровень дохода (целое число)
 only_with_salary: False  # Показывать только вакансии с указанным уровнем дохода
 
 currency:  # Валюта (может принимать только одно значение true)
-  RUR: true  # рубль
-  EUR: false  # евро
+  RUR: false  # рубль
+  EUR: true  # евро
   USD: false  # доллар
 
 education:  # Образование - есть в интерфейсе, но по факту не участвует в поиске вакансий
   not_needed: true  # Не требуется или не указано
-  middle: false  # Среднее профессиональное
-  higher: false  # Высшее
+  middle: true  # Среднее профессиональное
+  higher: true  # Высшее
 
 experience: # Требуемый опыт работы (может принимать только одно значение true)
   doesntMatter: false  # Не имеет значения
@@ -45,26 +45,27 @@ experience: # Требуемый опыт работы (может приним�
   moreThan6: true  # Более 6 лет
 
 employment:  # Тип занятости
-  full: true  # Полная занятость
-  part: true  # Частичная занятость
-  project: false  # Проектная работа/разовое задание
-  volunteer: false  # Волонтерство
-  probation: false  # Стажировка
+  FULL: true  # Полная занятость
+  PART: true  # Частичная занятость
+  PROJECT: true  # Проектная работа/разовое задание
+  FLY_IN_FLY_OUT: true  # Вахта
+  ACCEPT_TEMPORARY: true  # Оформление по ГПХ или по совместительству
+  INTERNSHIP: true  # Стажировка 
 
-job_format:  # График работы
-  fullDay: true  # Полный день
-  shift: false  # Сменный график
-  flexible: false  # Гибкий график
-  remote: true  # Удаленная работа
-  flyInFlyOut: false  # Вахтовый метод
+job_format:  # Формат работы
+  ON_SITE: true  # На месте работодателя
+  REMOTE: true  # Удаленно
+  HYBRID: true  # Гибрид
+  FIELD_WORK: true  # Разъездной
 
 vacancy_label:  # Другие параметры
   with_address: true  # С адресом
-  accept_handicapped: false  # Доступные людям с инвалидностью
-  not_from_agency: false  # Без вакансий от кадровых агентств
-  accept_kids: false  # Доступные с 14 лет
+  accept_handicapped: true  # Доступные людям с инвалидностью
+  not_from_agency: true  # Без вакансий от кадровых агентств
+  accept_kids: true  # Доступные с 14 лет
   accredited_it: true  # От аккредитованных ИТ-компаний
-  low_performance: false  # Меньше 10 откликов
+  low_performance: true  # Меньше 10 откликов
+  accept_teens: true  # Доступные с 16 лет
 
 order_by:  # Сортировать выдачу (может принимать только одно значение true)
   relevance: true  # по соответствию
@@ -100,12 +101,6 @@ cover_letter: |
 apply_once_at_company: true  # подаваться в каждой компании не более чем на одну вакансию (иначе можно сразу на несколько)
 
 skip_companies_with_test: false # пропускать вакансии, которые предлагают тестовые задания
-
-access_token: agqt34jaegag35623  # ключ доступа к hh API
-
-refresh_token: lgjaglj436l5j26h2   # ключ обновления доступа к hh API
-
-user_id: '168901459' # ID пользователя на сайте hh.ru (обязательное поле)
 
 max_applies_num: 200  # максимальное число откликов за один запуск приложения, по умолчанию 200 (обязательное поле)
 

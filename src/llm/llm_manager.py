@@ -14,7 +14,7 @@ import yaml
 from dotenv import load_dotenv
 from langchain_core.messages import BaseMessage, SystemMessage
 from langchain_core.messages.ai import AIMessage
-from langchain_core.output_parsers import StrOutputParser
+from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
 from langchain_core.prompt_values import StringPromptValue
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI, HarmBlockThreshold, HarmCategory
@@ -22,6 +22,7 @@ from Levenshtein import distance
 
 import src.llm.prompts as prompts
 from src.app_config import JOB_IS_INTERESTING_THRESH, LLM_MODEL, LLM_MODEL_TYPE, TEMPERATURE
+from src.pydantic_models.llm import ContactInfo, JobIsInteresting, ResumeIsInteresting, BaseModel
 from src.constants import PRICE_DICT
 from src.logger_config import logger
 from src.utils.json_to_readable import transform_search_config_data, transform_vacancy_data
@@ -483,22 +484,20 @@ class GPTAnswerer:
         self.ai_adapter = AIAdapter(llm_api_key, llm_proxy)
         self.llm_cheap = LoggerChatModel(self.ai_adapter)
         self.chains = {
-            "job_is_interesting": self._create_chain(prompts.job_is_interesting),
+            "job_is_interesting": self._create_pydantic_chain(
+                prompts.job_is_interesting, JobIsInteresting
+            ),
+            "resume_is_interesting": self._create_pydantic_chain(
+                prompts.resume_is_interesting, ResumeIsInteresting
+            ),
             "text_question": self._create_chain(prompts.text_question_answer_template),
-            "cover_letter": self._create_chain(prompts.coverletter_template),
-            "personal_information": self._create_chain(prompts.personal_information_template),
-            "legal_authorization": self._create_chain(prompts.legal_authorization_template),
-            "work_preferences": self._create_chain(prompts.work_preferences_template),
-            "education_details": self._create_chain(prompts.education_details_template),
-            "experience_details": self._create_chain(prompts.experience_details_template),
-            "projects": self._create_chain(prompts.projects_template),
-            "availability": self._create_chain(prompts.availability_template),
-            "salary_expectations": self._create_chain(prompts.salary_expectations_template),
-            "certifications": self._create_chain(prompts.certifications_template),
-            "languages": self._create_chain(prompts.languages_template),
-            "interests": self._create_chain(prompts.interests_template),
-            "previous_job_details": self._create_chain(prompts.previous_job_template),
-            "general_knowledge_questions": self._create_chain(prompts.general_knowledge_template),
+            "one_answer_from_options": self._create_chain(prompts.options_template),
+            "many_answers_from_options": self._create_chain(prompts.many_options_template),
+            "summarize_job_description": self._create_chain(prompts.summarize_prompt_template),
+            "resume_improvement_recommendations": self._create_chain(prompts.resume_improve),
+            "parse_contacts": self._create_pydantic_chain(
+                prompts.parse_contacts_template, ContactInfo
+            ),
         }
 
     @staticmethod
@@ -551,11 +550,7 @@ class GPTAnswerer:
     def summarize_job_description(self, text: str) -> str:
         """Создаем краткое описание вакансии"""
         logger.info(f"Создаем краткое описание вакансии: '{text}'")
-        prompts.summarize_prompt_template = self._preprocess_template_string(
-            prompts.summarize_prompt_template
-        )
-        prompt = ChatPromptTemplate.from_template(prompts.summarize_prompt_template)
-        chain = prompt | self.llm_cheap | StrOutputParser()
+        chain = self.chains["summarize_job_description"]
         output = chain.invoke({"text": text})
         logger.info(f"Сгенерировано краткое описание: {output}")
         return output
@@ -566,13 +561,22 @@ class GPTAnswerer:
         prompt = ChatPromptTemplate.from_template(template)
         return prompt | self.llm_cheap | StrOutputParser()
 
+    def _create_pydantic_chain(
+        self, template: str, pydantic_object: BaseModel
+    ) -> Tuple[ChatPromptTemplate, PydanticOutputParser]:
+        """Создаем цепочку обработки для конкретного раздела резюме с использованием Pydantic модели."""
+        parser = PydanticOutputParser(pydantic_object=pydantic_object)
+        template = self._preprocess_template_string(template)
+        prompt = ChatPromptTemplate.from_template(template)
+        return prompt | self.llm_cheap | parser, parser
+
     def answer_question_textual_wide_range(self, question: str) -> str:
         """Определить тему заданного вопроса и ответить на него"""
         logger.info(f"Отвечаем на текстовый вопрос: '{question}'")
         sex = self.resume["personal_information"].get("sex")
         current_date = datetime.now().date().strftime("%Y-%m-%d")
 
-        chain = self._create_chain(prompts.text_question_answer_template)
+        chain = self.chains["text_question"]
         output = chain.invoke(
             {
                 "resume": self.resume_readable,
@@ -590,10 +594,10 @@ class GPTAnswerer:
         вариантами ответа. Должен вернуть только один.
         """
         logger.info(f"Отвечаем на вопрос c выбором одного ответа: {question}")
-        func_template = self._preprocess_template_string(prompts.options_template)
-        prompt = ChatPromptTemplate.from_template(func_template)
-        chain = prompt | self.llm_cheap | StrOutputParser()
-        output_str = chain.invoke({"resume": self.resume, "question": question, "options": options})
+        chain = self.chains["one_answer_from_options"]
+        output_str = chain.invoke(
+            {"resume": self.resume_readable, "question": question, "options": options}
+        )
         logger.info(f"Ответ от LLM: {output_str}")
         best_option = self.find_best_match(output_str, options)
         logger.info(f"Лучший вариант ответа найден: {best_option}")
@@ -605,10 +609,10 @@ class GPTAnswerer:
         вариантами ответа. Может вернуть больше одного.
         """
         logger.info(f"Отвечаем на вопрос c выбором одного или нескольких ответа: {question}")
-        func_template = self._preprocess_template_string(prompts.many_options_template)
-        prompt = ChatPromptTemplate.from_template(func_template)
-        chain = prompt | self.llm_cheap | StrOutputParser()
-        output_str = chain.invoke({"resume": self.resume, "question": question, "options": options})
+        chain = self.chains["many_answers_from_options"]
+        output_str = chain.invoke(
+            {"resume": self.resume_readable, "question": question, "options": options}
+        )
         logger.info(f"Ответ от LLM: {output_str}")
         # на случай если LLM вернет python-like список
         output_str = output_str.replace("[", "").replace("]", "")
@@ -626,9 +630,8 @@ class GPTAnswerer:
         Спрашиваем у LLM, может ли быть интересна
         данная вакансия с учетом нашего резюме, навыков и интересов
         """
-        # TODO: add Pydantic model for that output
         logger.info("Проверяем, насколько вакансия может быть интересна.")
-        chain = self._create_chain(prompts.job_is_interesting)
+        chain = self.chains["job_is_interesting"]
         try:
             output = chain.invoke(
                 {
@@ -642,16 +645,9 @@ class GPTAnswerer:
             logger.error(f"Ошибка при вызове LLM\n{tb_str}")
             return None
         logger.info(f"Ответ LLM: '{output}'")
-        # парсим ответ LLM
-        try:
-            score = re.search(r"Score: (\d+)", output).group(1)
-            reasoning = re.search(r"Reasoning: (.+)", output, re.DOTALL).group(1)
-        except AttributeError:
-            logger.error(f"LLM вернула некорректный ответ:\n{output}")
-            return False
-        logger.info(f"Степень 'интересности' вакансии: {score}")
-        if int(score) < JOB_IS_INTERESTING_THRESH:
-            logger.info(f"Работа не интересна: {reasoning}")
+        logger.info(f"Степень 'интересности' вакансии: {output.score}")
+        if output.score < JOB_IS_INTERESTING_THRESH:
+            logger.info(f"Работа не интересна: {output.reasoning}")
             return False
         return True
 
@@ -660,8 +656,7 @@ class GPTAnswerer:
         Спрашиваем у LLM, наскольо может быть интересно
         данное резюме с точки зрения его улучшения
         """
-        # TODO: add Pydantic model for that output
-        chain = self._create_chain(prompts.resume_is_interesting)
+        chain = self.chains["resume_is_interesting"]
         try:
             output = chain.invoke(
                 {
@@ -673,15 +668,15 @@ class GPTAnswerer:
             logger.error(f"Ошибка при вызове LLM\n{tb_str}")
             return None
         # парсим ответ LLM
-        try:
-            demand_score = re.search(r"Demand Score: (\d+)", output).group(1)
-            resume_score = re.search(r"Resume Score: (\d+)", output).group(1)
-            solvency_score = re.search(r"Solvency Score: (\d+)", output).group(1)
-            reasoning = re.search(r"Reasoning: (.+)", output, re.DOTALL).group(1)
-        except AttributeError:
-            logger.error(f"LLM вернула некорректный ответ:\n{output}")
-            return False
-        return demand_score, resume_score, solvency_score, reasoning
+        chain, parser = self.chains["resume_is_interesting"]
+        output = chain.invoke(
+            {
+                "resume": self.resume_readable,
+                "format_instructions": parser.get_format_instructions(),
+            }
+        )
+        logger.info(f"Ответ LLM: '{output}'")
+        return output.model_dump()
 
     def write_cover_letter(self) -> str:
         """
@@ -729,7 +724,7 @@ class GPTAnswerer:
         Пишем рекомендации по улучшению резюме
         """
         logger.info("Пишем рекомендации по улучшению резюме")
-        chain = self._create_chain(prompts.resume_improve)
+        chain = self.chains["resume_improvement_recommendations"]
         output = chain.invoke(
             {
                 "resume": self.resume_readable,
@@ -742,276 +737,12 @@ class GPTAnswerer:
         """
         Парсим контакты из резюме и возвращаем их в виде словаря.
         """
-        # TODO: add Pydantic model for that output
         logger.info("Парсим контакты из резюме")
-        chain = self._create_chain(prompts.parse_contacts_template)
+        chain = self.chains["parse_contacts"]
         output = chain.invoke(
             {
                 "resume": resume_info,
             }
         )
-        contacts = {}
-        for key in ["Telegram", "Whatsapp", "Phone", "Email", "LinkedIn"]:
-            contacts[key] = "No info"
-            value = re.search(rf"{key}: (.+?)(?:\n|$)", output)
-            if value:
-                contacts[key] = value.group(1)
-        logger.info(f"Контакты из резюме: {contacts}")
-        return contacts
-
-
-# class GPTResumeGenerator:
-#     def __init__(self, config: dict, llm_api_key: str, llm_proxy: str):
-#         self.ai_adapter = AIAdapter(config, llm_api_key, llm_proxy)
-#         self.llm_cheap = LoggerChatModel(self.ai_adapter)
-#         self.llm_embeddings = OpenAIEmbeddings(openai_api_key=llm_api_key, openai_proxy=llm_proxy)
-
-#     @staticmethod
-#     def _preprocess_template_string(template: str) -> str:
-#         """Предобработка строки с целью убрать лишние отступы"""
-#         return textwrap.dedent(template)
-
-#     def set_resume(self, resume):
-#         """Добавляем резюме для анализа."""
-#         self.resume = resume
-
-#     def set_job_description_from_text(self, job_description_text):
-#         """Резюмируем описание вакансии"""
-#         logger.info("Генерация краткого описания вакансии")
-#         prompt = ChatPromptTemplate.from_template(prompts.summarize_prompt_template)
-#         chain = prompt | self.llm_cheap | StrOutputParser()
-#         output = chain.invoke({"text": job_description_text})
-#         logger.info(f"Ответ от LLM: {output}")
-#         logger.info("Краткое описание вакансии сгенерировано")
-#         self.job_description = output
-
-#     def generate_header(self) -> str:
-#         """Генерация заголовка резюме"""
-#         logger.info("Генерация заголовка резюме")
-#         header_prompt_template = self._preprocess_template_string(prompts.prompt_header)
-#         prompt = ChatPromptTemplate.from_template(header_prompt_template)
-#         chain = prompt | self.llm_cheap | StrOutputParser()
-
-#         sex = self.resume["personal_information"].get("sex")
-#         output = chain.invoke(
-#             {
-#                 "personal_information": self.resume["personal_information"],
-#                 "job_description": self.job_readable,
-#                 "sex": sex,
-#             }
-#         )
-#         logger.info(f"Ответ от LLM: {output}")
-#         logger.info("Заголовок резюме сгенерирован")
-#         return output
-
-#     def generate_education_section(self) -> str:
-#         """Генерация раздела образования для резюме"""
-#         logger.info("Генерация раздела образования для резюме")
-#         education_prompt_template = self._preprocess_template_string(prompts.prompt_education)
-#         prompt = ChatPromptTemplate.from_template(education_prompt_template)
-#         chain = prompt | self.llm_cheap | StrOutputParser()
-#         sex = self.resume["personal_information"].get("sex")
-#         output = chain.invoke(
-#             {
-#                 "education_details": self.resume["education_details"],
-#                 "job_description": self.job_readable,
-#                 "sex": sex,
-#             }
-#         )
-#         logger.info(f"Ответ от LLM: {output}")
-#         logger.info("Раздел образования сгенерирован")
-#         return output
-
-#     def generate_work_experience_section(self) -> str:
-#         """Генерация раздела опыта для резюме"""
-#         logger.info("Генерация раздела опыта для резюме")
-#         work_experience_prompt_template = self._preprocess_template_string(
-#             prompts.prompt_working_experience
-#         )
-#         prompt = ChatPromptTemplate.from_template(work_experience_prompt_template)
-#         chain = prompt | self.llm_cheap | StrOutputParser()
-#         sex = self.resume["personal_information"].get("sex")
-#         output = chain.invoke(
-#             {
-#                 "experience_details": self.resume["experience_details"],
-#                 "job_description": self.job_readable,
-#                 "sex": sex,
-#             }
-#         )
-#         logger.info(f"Ответ от LLM: {output}")
-#         logger.info("Раздел опыта сгенерирован")
-#         return output
-
-#     def generate_side_projects_section(self) -> str:
-#         """Генерация раздела проектов для резюме"""
-#         logger.info("Генерация раздела проектов для резюме")
-
-#         side_projects_prompt_template = self._preprocess_template_string(
-#             prompts.prompt_side_projects
-#         )
-
-#         prompt = ChatPromptTemplate.from_template(side_projects_prompt_template)
-
-#         chain = prompt | self.llm_cheap | StrOutputParser()
-#         sex = self.resume["personal_information"].get("sex")
-
-#         output = chain.invoke(
-#             {
-#                 "projects": self.resume["about_me"],
-#                 "job_description": self.job_readable,
-#                 "sex": sex,
-#             }
-#         )
-#         logger.info(f"Ответ от LLM: {output}")
-#         logger.info("Раздел проектов сгенерирован")
-#         return output
-
-#     def generate_achievements_section(self) -> str:
-#         """Генерация раздела достижений для резюме"""
-#         logger.info("Генерация раздела достижений для резюме")
-
-#         achievements_prompt_template = self._preprocess_template_string(prompts.prompt_achievements)
-
-#         prompt = ChatPromptTemplate.from_template(achievements_prompt_template)
-
-#         chain = prompt | self.llm_cheap | StrOutputParser()
-
-#         sex = self.resume["personal_information"].get("sex")
-#         input_data = {
-#             "achievements": self.resume["about_me"],
-#             "job_description": self.job_readable,
-#             "sex": sex,
-#         }
-
-#         output = chain.invoke(input_data)
-#         logger.info(f"Ответ от LLM: {output}")
-#         logger.info("Раздел достижений сгенерирован")
-#         return output
-
-#     def generate_certifications_section(self) -> str:
-#         """Генерация раздела сертификации для резюме"""
-#         logger.info("Генерация раздела сертификации для резюме")
-
-#         certifications_prompt_template = self._preprocess_template_string(
-#             prompts.prompt_certifications
-#         )
-
-#         prompt = ChatPromptTemplate.from_template(certifications_prompt_template)
-
-#         chain = prompt | self.llm_cheap | StrOutputParser()
-
-#         sex = self.resume["personal_information"].get("sex")
-#         input_data = {
-#             "certifications": self.resume["certifications"],
-#             "job_description": self.job_readable,
-#             "sex": sex,
-#         }
-
-#         output = chain.invoke(input_data)
-#         logger.info(f"Ответ от LLM: {output}")
-#         logger.info("Раздел сертификации сгенерирован")
-#         return output
-
-#     def generate_additional_skills_section(self) -> str:
-#         """Генерация раздела навыков для резюме"""
-#         logger.info("Генерация раздела навыков для резюме")
-
-#         additional_skills_prompt_template = self._preprocess_template_string(
-#             prompts.prompt_additional_skills
-#         )
-#         prompt = ChatPromptTemplate.from_template(additional_skills_prompt_template)
-#         chain = prompt | self.llm_cheap | StrOutputParser()
-
-#         sex = self.resume["personal_information"].get("sex")
-
-#         output = chain.invoke(
-#             {
-#                 "languages": self.resume["languages"],
-#                 "skills": self.resume["skills"],
-#                 "job_description": self.job_readable,
-#                 "sex": sex,
-#             }
-#         )
-#         logger.info(f"Ответ от LLM: {output}")
-#         logger.info("Раздел навыков сгенерирован")
-#         return output
-
-#     def generate_html_resume(self) -> str:
-#         """Создание резюме из сгенерированных компонентов"""
-
-#         def header_fn():
-#             if self.resume["personal_information"] and self.job_description:
-#                 return self.generate_header()
-#             return ""
-
-#         def education_fn():
-#             if self.resume["education_details"] and self.job_description:
-#                 return self.generate_education_section()
-#             return ""
-
-#         def work_experience_fn():
-#             if self.resume["experience_details"] and self.job_description:
-#                 return self.generate_work_experience_section()
-#             return ""
-
-#         def side_projects_fn():
-#             if self.resume["about_me"] and self.job_description:
-#                 return self.generate_side_projects_section()
-#             return ""
-
-#         def achievements_fn():
-#             if self.resume["about_me"] and self.job_description:
-#                 return self.generate_achievements_section()
-#             return ""
-
-#         def certifications_fn():
-#             if self.resume["certifications"] and self.job_description:
-#                 return self.generate_certifications_section()
-#             return ""
-
-#         def additional_skills_fn():
-#             if (
-#                 self.resume["experience_details"]
-#                 or self.resume["education_details"]
-#                 or self.resume["languages"]
-#                 or self.resume["about_me"]
-#             ) and self.job_description:
-#                 return self.generate_additional_skills_section()
-#             return ""
-
-#         # Create a dictionary to map the function names to their respective callables
-#         functions = {
-#             "header": header_fn,
-#             "education": education_fn,
-#             "work_experience": work_experience_fn,
-#             "side_projects": side_projects_fn,
-#             "achievements": achievements_fn,
-#             "certifications": certifications_fn,
-#             "additional_skills": additional_skills_fn,
-#         }
-
-#         # Use ThreadPoolExecutor to run the functions in parallel
-#         with ThreadPoolExecutor() as executor:
-#             future_to_section = {executor.submit(fn): section for section, fn in functions.items()}
-#             results = {}
-#             for future in as_completed(future_to_section):
-#                 section = future_to_section[future]
-#                 try:
-#                     result = future.result()
-#                     if result:
-#                         results[section] = result
-#                 except Exception:
-#                     tb_str = traceback.format_exc()
-#                     logger.error(f"Секция {section} обработана с ошибкой\n{tb_str}")
-#         full_resume = "<body>\n"
-#         full_resume += f"  {results.get('header', '')}\n"
-#         full_resume += "  <main>\n"
-#         full_resume += f"    {results.get('education', '')}\n"
-#         full_resume += f"    {results.get('work_experience', '')}\n"
-#         full_resume += f"    {results.get('side_projects', '')}\n"
-#         full_resume += f"    {results.get('achievements', '')}\n"
-#         full_resume += f"    {results.get('certifications', '')}\n"
-#         full_resume += f"    {results.get('additional_skills', '')}\n"
-#         full_resume += "  </main>\n"
-#         full_resume += "</body>"
-#         return full_resume
+        logger.info(f"Ответ LLM: '{output}'")
+        return output.model_dump()

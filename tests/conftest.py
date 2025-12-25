@@ -84,11 +84,6 @@ def setup_test_environment():
                 f,
             )
 
-    # Create a search_config.yaml file if it doesn't exist
-    if not search_config_path_exists:
-        with open(search_config_path, "w") as f:
-            yaml.dump({"user_id": "test_user"}, f)
-
     # Create an empty error cache file if needed for tests
     if not error_cache_path_exists:
         error_cache_path.touch()

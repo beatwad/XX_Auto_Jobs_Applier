@@ -68,7 +68,6 @@ class AsyncTelegramSink:
         self.chat_id = secrets["tg_chat_id"]
         self.err_topic_id = secrets["tg_err_topic_id"]
         self.report_topic_id = secrets["tg_report_topic_id"]
-        self.user_id = load_yaml_file(SEARCH_CONFIG_FILE).get("user_id", "-1")
         self.max_retries = max_retries
         self.cooldown = cooldown  # Seconds between identical error notifications
         self.error_cache_file = "src/telegram/error_cache.yaml"
@@ -83,7 +82,7 @@ class AsyncTelegramSink:
         """Пытаемся отправить сообщение. В случае ошибки ждем экспоненциально дольше."""
         base_delay = 1
         # ограничиваем максимальную длину сообщения, чтобы избежать ошибки Telegram
-        message_ = f"HH user id: ```{self.user_id}```\nError:\n```{message[:4050]}```"
+        message_ = f"Error:\n```{message[:4050]}```"
         for attempt in range(self.max_retries):
             try:
                 await self.bot.send_message(

@@ -97,7 +97,6 @@ class Period(BaseModel):
 class SearchConfig(BaseModel):
     # Optional fields
     job_title: Optional[str] = ""
-    user_id: Optional[str] = ""
     resume_id: Optional[str] = ""
     keywords: Optional[str] = ""
     experience: Optional[Experience] = None
