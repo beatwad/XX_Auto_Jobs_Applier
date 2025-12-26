@@ -5,6 +5,7 @@ langchain==0.3.23
 langchain-community==0.3.14
 langchain-core==0.3.51
 langchain-google-genai==2.1.2
+langchain_openai
 Levenshtein==0.25.1
 loguru==0.7.2
 PyYAML==6.0.2

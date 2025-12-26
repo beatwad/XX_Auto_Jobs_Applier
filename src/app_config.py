@@ -6,13 +6,7 @@
 по интересам или по стеку
 """
 
-MONKEY_MODE = False
-
-"""
-Этот режим нужен для создания резюме. Берем информацию о пользователе и вакансии
-и создаем резюме, которое идеально подходит для данной вакансии
-"""
-RESUME_MODE = False
+MONKEY_MODE = True
 
 """
 Этот режим нужен для проверки качества генерации сопроводительных писем.
@@ -69,12 +63,12 @@ MINIMUM_LOG_LEVEL = "DEBUG"
     - "gemini"
     - "huggingface"
 """
-# LLM_MODEL_TYPE = "openai"
-LLM_MODEL_TYPE = "gemini"
+LLM_MODEL_TYPE = "openai"
+# LLM_MODEL_TYPE = "gemini"
 
 # Модель LLM
-# LLM_MODEL = "gpt-4o-mini"
-LLM_MODEL = "gemini-2.0-flash"
+LLM_MODEL = "gpt-5-nano"
+# LLM_MODEL = "gemini-2.0-flash"
 
 # Температура модели
 # чем она выше, тем креативнее модель, но могут случаться галлюцинации

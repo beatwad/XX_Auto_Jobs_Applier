@@ -91,10 +91,8 @@ class PlaywrightJobManager:
 
         # Then open password form (button text: "Войти с паролем")
         logger.info("Opening password form")
-        expand_pass = self.page.locator("//*[starts-with(@data-qa, 'expand-login-by')]")
-        if await expand_pass.count() > 0:
-            await expand_pass.click()
-            await asyncio.sleep(1)
+        await safe_click(self.page, "//*[starts-with(@data-qa, 'expand-login-by')]")
+        await asyncio.sleep(1)
 
         # Fill password
         logger.info("Filling password")
@@ -294,9 +292,7 @@ class PlaywrightJobManager:
         url = f"https://hh.ru/resume/{resume_id}"
         await self.page.goto(url)
         logger.info(f"Переход на страницу: {url}")
-        recommend_button = self.page.locator("xpath=//*[contains(text(), 'Подобрали для вас')]")
-        if await recommend_button.count() > 0:
-            await recommend_button.click()
+        await safe_click(self.page, "xpath=//*[contains(text(), 'Подобрали для вас')]")
 
     async def set_advanced_search_params(
         self, search_params: Dict[str, Any], resume_id: str
@@ -420,7 +416,7 @@ class PlaywrightJobManager:
         ]
         best_idx = min(distances, key=lambda x: x[1])[0]
         try:
-            await items[best_idx].click()
+            await safe_click(self.page, suggestion_xpath, element_number=best_idx)
             await asyncio.sleep(0.5)
             return True
         except Exception:
@@ -930,7 +926,7 @@ class PlaywrightJobManager:
         }
 
     async def _handle_interfering_messages(self):
-        """Handle cookies and notifications."""
+        """Handle cookies, notifications, and other popups."""
         # Cookies
         cookies_btn = self.page.locator("xpath=//*[text()='Понятно']")
         if await cookies_btn.count() > 0:
@@ -940,6 +936,11 @@ class PlaywrightJobManager:
         close_btn = self.page.locator('[data-qa="notification-close-button"]')
         if await close_btn.count() > 0:
             await close_btn.click()
+
+        # Additional data collector popup
+        save_btn = self.page.locator('[data-qa="additional-data-collector__popup-save"]')
+        if await save_btn.count() > 0:
+            await save_btn.click()
 
     async def apply_to_vacancy(
         self, vacancy_url: str, cover_letter: str, gpt_answerer: Any, resume_titles: List[str]
@@ -955,18 +956,14 @@ class PlaywrightJobManager:
         await self.pause_async()
 
         # Click Apply
-        apply_btn_top = self.page.locator('[data-qa="vacancy-response-link-top"]')
-        apply_btn_bottom = self.page.locator('[data-qa="vacancy-response-link-bottom"]')
+        apply_btn_top_selector = '[data-qa="vacancy-response-link-top"]'
+        apply_btn_bottom_selector = '[data-qa="vacancy-response-link-bottom"]'
 
-        apply_btn = None
-        if await apply_btn_top.count() > 0:
-            apply_btn = apply_btn_top
-        elif await apply_btn_bottom.count() > 0:
-            apply_btn = apply_btn_bottom
+        clicked = await safe_click(self.page, apply_btn_top_selector)
+        if not clicked:
+            clicked = await safe_click(self.page, apply_btn_bottom_selector)
 
-        if apply_btn:
-            await apply_btn.first.click()
-        else:
+        if not clicked:
             # Check if already applied or other state
             return "Error", "Apply button not found"
 
@@ -974,52 +971,124 @@ class PlaywrightJobManager:
         await asyncio.sleep(2)
         await self._handle_interfering_messages()
 
-        # Check if we are on response page (URL contains vacancy_response) or modal appeared
-        # Sometimes it opens a modal, sometimes navigates.
-
         # Handle Questions
-        questions = await self.page.locator('[data-qa="task-body"]').all()
-        if questions:
-            logger.info(f"Found {len(questions)} questions")
-            for question in questions:
-                success, msg = await self._handle_question(question, gpt_answerer)
+        questions_selector = '[data-qa="task-body"]'
+        questions_count = await self.page.locator(questions_selector).count()
+        if questions_count > 0:
+            logger.info(f"Found {questions_count} questions")
+            for i in range(questions_count):
+                question_xpath = f"(//*[@data-qa='task-body'])[{i + 1}]"
+                question_locator = self.page.locator(question_xpath)
+                success, msg = await self._handle_question(
+                    question_locator, gpt_answerer, question_selector=question_xpath
+                )
                 if not success:
                     return "Skip", msg
 
+        # Post-apply Cover Letter
+        magritte_cl_form = self.page.locator('[data-qa="vacancy-response-letter-informer"]')
+        if await magritte_cl_form.count() > 0:
+            logger.info("Found Magritte cover letter form")
+            await safe_fill(
+                self.page,
+                '[data-qa="vacancy-response-letter-informer"] textarea[name="text"]',
+                cover_letter,
+            )
+            await self.pause_async(1, 2)
+            # Submit the cover letter
+            if await safe_click(
+                self.page, '[data-qa="vacancy-response-letter-submit"]', timeout=5000
+            ):
+                await asyncio.sleep(2)
+                return "Success", "Cover letter sent"
+
         # Handle Cover Letter
-        cl_btn = self.page.locator(
-            "xpath=//*[text()='Добавить' or contains(text(), 'Сопроводительное')]"
-        )
-        if await cl_btn.count() > 0 and await cl_btn.first.is_visible():
-            await cl_btn.first.click()
-            await asyncio.sleep(1)
+        cl_btn_xpath = "xpath=//*[text()='Добавить' or contains(text(), 'Сопроводительное')]"
+        if await self.page.locator(cl_btn_xpath).count() > 0:
+            if await self.page.locator(cl_btn_xpath).first.is_visible():
+                await safe_click(self.page, cl_btn_xpath, supress_warnings=True)
+                await self.pause_async(1, 2)
 
         cl_input = self.page.locator('[data-qa="vacancy-response-popup-form-letter-input"]')
         if await cl_input.count() > 0:
             await safe_fill(
-                self.page, '[data-qa="vacancy-response-popup-form-letter-input"]', cover_letter
+                self.page,
+                '[data-qa="vacancy-response-popup-form-letter-input"]',
+                cover_letter,
+                supress_warnings=True,
             )
+            await self.pause_async(1, 2)
 
         await self._handle_interfering_messages()
+
+        # Check if Magritte modal with specific submit button is open
+        modal_submit_btn = self.page.locator('[data-qa="vacancy-response-submit-popup"]')
+        if await modal_submit_btn.count() > 0 and await modal_submit_btn.is_visible():
+            logger.info("Found Magritte response modal submit button")
+            await safe_click(self.page, '[data-qa="vacancy-response-submit-popup"]')
+            await self.pause_async(3, 4)
+            return "Success", ""
 
         # Submit
         submit_btn = self.page.locator("xpath=//*[text()='Откликнуться']")
         if await submit_btn.count() > 0:
-            await submit_btn.first.click()
-            await asyncio.sleep(3)
+            await safe_click(self.page, submit_btn)
+            await self.pause_async(3, 4)
             # Check for success?
             return "Success", ""
 
         return "Error", "Submit button not found"
 
-    async def _handle_question(self, question: Locator, gpt_answerer: Any) -> Tuple[bool, str]:
+    async def _handle_question(
+        self, question: Locator, gpt_answerer: Any, question_selector: Optional[str] = None
+    ) -> Tuple[bool, str]:
         """Handle single question."""
-        text_el = question
-        # Need to find text of question. Usually it's direct text or child.
-        question_text = await get_clean_text(text_el)
+        # 1. Extract Question Text
+        question_text_el = question.locator('[data-qa="task-question"]').first
+        if await question_text_el.count() > 0:
+            question_text = await get_clean_text(question_text_el)
+        else:
+            question_text = await get_clean_text(question)
         logger.info(f"Handling question: {question_text}")
 
-        # Radio
+        # 2. Check for Magritte Cells (Radio/Checkbox with labels)
+        cells = await question.locator('[data-qa="cell"]').all()
+        if cells:
+            # Determine type from first cell
+            is_radio = await cells[0].locator('[data-qa="radio-container"]').count() > 0
+            is_checkbox = await cells[0].locator('[data-qa="checkbox-container"]').count() > 0
+
+            if is_radio or is_checkbox:
+                options = []
+                for cell in cells:
+                    text_el = cell.locator('[data-qa="cell-text-content"]').first
+                    text = await get_clean_text(text_el) if await text_el.count() > 0 else ""
+                    options.append(text)
+
+                options.append("No info")
+
+                if is_radio:
+                    answer = gpt_answerer.select_one_answer_from_options(question_text, options)
+                    clicked = False
+                    for i, opt in enumerate(options):
+                        if opt == answer and opt != "No info":
+                            await cells[i].click()
+                            clicked = True
+                            break
+                    if clicked:
+                        return True, ""
+                    return False, "No suitable answer found"
+
+                elif is_checkbox:
+                    answers = gpt_answerer.select_many_answers_from_options(question_text, options)
+                    clicked = False
+                    for i, opt in enumerate(options):
+                        if opt in answers and opt != "No info":
+                            await cells[i].click()
+                            clicked = True
+                    return clicked, "No suitable answer found" if not clicked else ""
+
+        # 3. Radio (fallback)
         radios = await question.locator('[data-qa="radio-container"]').all()
         if radios:
             options = []
@@ -1031,11 +1100,17 @@ class PlaywrightJobManager:
 
             for i, opt in enumerate(options):
                 if opt == answer and opt != "No info":
-                    await radios[i].click()
+                    if question_selector:
+                        # Use safe_click with index relative to the question
+                        radio_xpath = f"{question_selector}//*[@data-qa='radio-container']"
+                        await safe_click(self.page, radio_xpath, element_number=i)
+                    else:
+                        # Fallback if no selector provided (should not happen with new call)
+                        await radios[i].click()
                     return True, ""
             return False, "No suitable answer found"
 
-        # Checkbox
+        # 4. Checkbox (fallback)
         checkboxes = await question.locator('[data-qa="checkbox-container"]').all()
         if checkboxes:
             options = []
@@ -1048,17 +1123,31 @@ class PlaywrightJobManager:
             clicked = False
             for i, opt in enumerate(options):
                 if opt in answers and opt != "No info":
-                    await checkboxes[i].click()
+                    if question_selector:
+                        checkbox_xpath = f"{question_selector}//*[@data-qa='checkbox-container']"
+                        await safe_click(self.page, checkbox_xpath, element_number=i)
+                    else:
+                        await checkboxes[i].click()
                     clicked = True
 
             return clicked, "No suitable answer found" if not clicked else ""
 
-        # Textarea
+        # 5. Textarea (Inside)
         textarea = question.locator("textarea")
         if await textarea.count() > 0:
             answer = gpt_answerer.answer_question_textual_wide_range(question_text)
             await textarea.fill(answer)
             return True, ""
+
+        # 6. Textarea (Sibling - Magritte)
+        if question_selector:
+            sibling_textarea = self.page.locator(
+                f"xpath={question_selector}/following-sibling::div[@data-qa='textarea-wrapper'][1]//textarea"
+            )
+            if await sibling_textarea.count() > 0:
+                answer = gpt_answerer.answer_question_textual_wide_range(question_text)
+                await sibling_textarea.fill(answer)
+                return True, ""
 
         return False, "Unknown question type"
 
@@ -1198,11 +1287,8 @@ class PlaywrightJobManager:
 
     async def raise_resume(self) -> None:
         """Raise resume in search."""
-        raise_btn = self.page.locator(
-            "xpath=//*[contains(text(), 'Поднять в') and contains(text(), 'поиске')]"
-        )
-        if await raise_btn.count() > 0:
-            await raise_btn.first.click()
+        raise_btn_xpath = "xpath=//*[contains(text(), 'Поднять в') and contains(text(), 'поиске')]"
+        if await safe_click(self.page, raise_btn_xpath):
             await asyncio.sleep(2)
             logger.info("Резюме успешно поднято")
         else:

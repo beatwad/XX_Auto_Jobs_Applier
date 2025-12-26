@@ -102,7 +102,11 @@ async def save_browser_session(context: BrowserContext) -> None:
 
 
 async def safe_click(
-    page: Page, selector: str, timeout: int = 1000, element_number: int = 0
+    page: Page,
+    selector: str,
+    timeout: int = 1000,
+    element_number: int = 0,
+    supress_warnings: bool = False,
 ) -> bool:
     """Safely click element with retries (async)"""
     try:
@@ -110,7 +114,8 @@ async def safe_click(
         element_count = await locator.count()
 
         if element_count == 0:
-            logger.warning(f"Element not found: {selector}")
+            if not supress_warnings:
+                logger.warning(f"Element not found: {selector}")
             return False
 
         # Select the first matched element (even if multiple)
@@ -139,7 +144,8 @@ async def safe_click(
         return True
 
     except Exception as e:
-        logger.warning(f"Failed to click element '{selector}': {e}")
+        if not supress_warnings:
+            logger.warning(f"Failed to click element '{selector}': {e}")
         return False
 
 
@@ -149,6 +155,7 @@ async def safe_fill(
     text: str,
     timeout: int = 10000,
     wait_for_timeout: Optional[int] = None,
+    supress_warnings: bool = False,
 ) -> bool:
     """Safely fill text input with human-like behavior (async)"""
     try:
@@ -163,7 +170,8 @@ async def safe_fill(
         element_count = await locator.count()
 
         if element_count == 0:
-            logger.warning(f"No elements found for selector: {selector}")
+            if not supress_warnings:
+                logger.warning(f"No elements found for selector: {selector}")
             return False
 
         # Select the first matched element (even if multiple)
@@ -197,7 +205,8 @@ async def safe_fill(
         return True
 
     except Exception as e:
-        logger.warning(f"Failed to fill element '{selector}': {e}")
+        if not supress_warnings:
+            logger.warning(f"Failed to fill element '{selector}': {e}")
         return False
 
 

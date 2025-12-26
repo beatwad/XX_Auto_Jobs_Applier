@@ -12,7 +12,6 @@ from src.app_config import (
     COVER_LETTER_MODE,
     MINIMUM_WAIT_TIME_SEC,
     MONKEY_MODE,
-    RESUME_MODE,
     SKILL_STAT_MODE,
 )
 from src.constants import LAST_RUN_FILE, SEARCH_CONFIG_FILE
@@ -206,10 +205,7 @@ class JobApplier:
         logger.info(f"Откликов отправлено: {self.success_applies_num}")
         logger.info("Завершаем работу.")
         # если поиск прошел успешно - отсылаем отчет о проделанной работе
-        if (
-            not (COVER_LETTER_MODE is True or SKILL_STAT_MODE is True or RESUME_MODE is True)
-            and result != "Error"
-        ):
+        if not (COVER_LETTER_MODE is True or SKILL_STAT_MODE is True) and result != "Error":
             # если хотя бы на одну вакансию откликнулись успешно c момента запуска
             # записываем время последнего поиска и отсылаем отчет
             if self.previous_apply_number < self.success_applies_num:
@@ -264,7 +260,7 @@ class JobApplier:
 
         result, _ = apply_result
         # если находимся в одном из режимов сбора информации - не ведем статистику по вакансиям
-        if COVER_LETTER_MODE is True or SKILL_STAT_MODE is True or RESUME_MODE is True:
+        if COVER_LETTER_MODE is True or SKILL_STAT_MODE is True:
             return "OK"
         # увеличиваем счетчики всех откликов и успешных откликов
         self.applies_num += 1
@@ -311,7 +307,7 @@ class JobApplier:
             if self.fixed_cover_letter:
                 logger.info(f"Берем готовое сопроводительное письмо:\n'{self.fixed_cover_letter}'")
                 cover_letter_text = self.fixed_cover_letter
-            elif not RESUME_MODE and not SKILL_STAT_MODE:
+            elif not SKILL_STAT_MODE:
                 cover_letter_text = self.gpt_answerer.write_cover_letter()
                 # деанонимизируем информацию
                 cover_letter_text = self.resume_component.deanonymize_personal_information(
@@ -332,12 +328,6 @@ class JobApplier:
                     "Находимся в режиме сбора статистики по навыкам - не откликаемся на вакансии"
                 )
                 return "Skip", "SKILL_STAT_MODE"
-            elif RESUME_MODE is True:
-                # если находимся в режиме резюме - не откликаемся на вакансии,
-                # только сохраняем сгенерированные резюме
-                logger.info("Находимся в режиме резюме - не откликаемся на вакансии")
-                # self.write_and_upload_resume(job, vacancy["alternate_url"]) # Disabled in migration for simplicity
-                return "Skip", "RESUME_MODE"
             else:
                 return await self.manager.apply_to_vacancy(
                     vacancy["alternate_url"],

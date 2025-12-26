@@ -1,6 +1,5 @@
 import os
 import random
-import re
 import textwrap
 import time
 import traceback
@@ -17,6 +16,7 @@ from langchain_core.messages.ai import AIMessage
 from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
 from langchain_core.prompt_values import StringPromptValue
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
 from langchain_google_genai import ChatGoogleGenerativeAI, HarmBlockThreshold, HarmCategory
 from Levenshtein import distance
 
@@ -36,40 +36,42 @@ class AIModel(ABC):
         pass
 
 
-# class OpenAIModel(AIModel):
-#     """Получить доступ к модели OpenAI"""
+class OpenAIModel(AIModel):
+    """Получить доступ к модели OpenAI"""
 
-#     def __init__(self, api_key: str, llm_model: str, llm_proxy: Union[str, None] = None) -> None:
-#         self.llm_proxy = llm_proxy
-#         self.model_name = llm_model
-#         self.openai_api_key = api_key
+    def __init__(self, api_key: str, llm_model: str, llm_proxy: Union[str, None] = None) -> None:
+        self.llm_proxy = llm_proxy
+        self.model_name = llm_model
+        self.openai_api_key = api_key
 
-#     def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
-#         logger.info("Получен доступ к модели через OpenAI API")
-#         prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
-#         # случайно выбираем одну прокси за другой, пока запрос к LLM не пройдет
-#         llm_proxies = self.llm_proxy.copy()
-#         random.shuffle(llm_proxies)
+    def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
+        logger.info("Получен доступ к модели через OpenAI API")
+        prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
+        # случайно выбираем одну прокси за другой, пока запрос к LLM не пройдет
+        llm_proxies = self.llm_proxy.copy()
+        random.shuffle(llm_proxies)
 
-#         for proxy in llm_proxies:
-#             model = ChatOpenAI(
-#                 model_name=self.model_name,
-#                 openai_api_key=self.openai_api_key,
-#                 openai_proxy=proxy,
-#                 temperature=TEMPERATURE,
-#                 presence_penalty=0,
-#                 frequency_penalty=0,
-#                 timeout=60,
-#             )
-#             try:
-#                 response = model.invoke(prompt_messages)
-#                 return response
-#             except Exception as e:
-#                 tb_str = traceback.format_exc()
-#                 logger.error(
-#                     f"Ошибка доступа к LLM с использованием прокси {proxy.split('@')[-1]}: \n Traceback: {tb_str}"
-#                 )
-#                 time.sleep(3)
+        for proxy in llm_proxies:
+            try:
+                model = ChatOpenAI(
+                    model_name=self.model_name,
+                    openai_api_key=self.openai_api_key,
+                    openai_proxy=proxy,
+                    temperature=TEMPERATURE,
+                    presence_penalty=0,
+                    frequency_penalty=0,
+                    timeout=60,
+                    # Try to minimize reasoning if the model supports it.
+                    reasoning_effort="low",
+                )
+                response = model.invoke(prompt_messages)
+                return response
+            except Exception:
+                tb_str = traceback.format_exc()
+                logger.error(
+                    f"Ошибка доступа к LLM с использованием прокси {proxy.split('@')[-1]}: \n Traceback: {tb_str}"
+                )
+                time.sleep(3)
 
 
 class GeminiModel(AIModel):
@@ -205,8 +207,8 @@ class AIAdapter:
 
         if LLM_MODEL_TYPE == "gemini":
             return GeminiModel(api_key, LLM_MODEL, llm_proxy)
-        # elif LLM_MODEL_TYPE == "openai":
-        #     return OpenAIModel(api_key, LLM_MODEL, llm_proxy)
+        elif LLM_MODEL_TYPE == "openai":
+            return OpenAIModel(api_key, LLM_MODEL, llm_proxy)
         # elif LLM_MODEL_TYPE == "gigachat":
         #     return GigaChatModel(api_key, LLM_MODEL)
         # elif LLM_MODEL_TYPE == "claude":
