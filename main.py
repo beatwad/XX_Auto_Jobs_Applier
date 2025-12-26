@@ -14,6 +14,8 @@ from src.logger_config import logger
 from src.pydantic_models.config import SearchConfig, Secrets
 from src.utils.utils import load_yaml_file
 
+# TODO: check mulitpage search
+
 
 class ConfigError(Exception):
     pass
