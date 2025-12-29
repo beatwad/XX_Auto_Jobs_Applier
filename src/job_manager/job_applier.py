@@ -363,7 +363,7 @@ class JobApplier:
                     vacancy["alternate_url"],
                     cover_letter_text,
                     self.gpt_answerer,
-                    self.resume_titles,
+                    self.resume_component,
                 )
         except Exception as e:
             tb_str = traceback.format_exc()

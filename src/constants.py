@@ -13,6 +13,8 @@ DUMMY_PERSONAL_INFO_MALE = {
     "habr_career": "https://career.habr.ru/aristaniy93",
     "linkedin": "https://linkedin.com/in/aristaniy-zvyagoltsev-f3e57c712",
     "github": "https://github.com/aristaniy93",
+    "telegram_2": "@aristaniy93",
+    "telegram_3": "aristaniy93",
 }
 
 # Личные данные-пустышки для анонимизации (женский пол)
@@ -30,6 +32,8 @@ DUMMY_PERSONAL_INFO_FEMALE = {
     "habr_career": "https://career.habr.ru/aristaniya93",
     "linkedin": "https://linkedin.com/in/aristaniya-zvyagoltseva-f3e57c712",
     "github": "https://github.com/aristaniya93",
+    "telegram_2": "@aristaniya93",
+    "telegram_3": "aristaniya93",
 }
 
 # Пути к файлам логов и настроек

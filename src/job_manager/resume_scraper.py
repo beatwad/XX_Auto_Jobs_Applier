@@ -191,6 +191,8 @@ class ResumeScraper:
                 # этот код добавлен с целью исправления данного бага
                 if key in ["last_name_2"]:
                     key_ = "last_name"
+                elif key in ["telegram_2", "telegram_3"]:
+                    key_ = "telegram"
                 else:
                     key_ = key
                 if not self.personal_information.get(key_):

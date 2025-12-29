@@ -983,7 +983,7 @@ class PlaywrightJobManager:
             await save_btn.click()
 
     async def apply_to_vacancy(
-        self, vacancy_url: str, cover_letter: str, gpt_answerer: Any, resume_titles: List[str]
+        self, vacancy_url: str, cover_letter: str, gpt_answerer: Any, resume_component: Any
     ) -> Tuple[str, str]:
         """
         Откликается на вакансию. Возвращает (Результат, Сообщение).
@@ -1020,7 +1020,10 @@ class PlaywrightJobManager:
                 question_xpath = f"(//*[@data-qa='task-body'])[{i + 1}]"
                 question_locator = self.page.locator(question_xpath)
                 success, msg = await self._handle_question(
-                    question_locator, gpt_answerer, question_selector=question_xpath
+                    question_locator,
+                    gpt_answerer,
+                    resume_component,
+                    question_selector=question_xpath,
                 )
                 if not success:
                     return "Skip", msg
@@ -1080,7 +1083,11 @@ class PlaywrightJobManager:
         return "Error", "Submit button not found"
 
     async def _handle_question(
-        self, question: Locator, gpt_answerer: Any, question_selector: Optional[str] = None
+        self,
+        question: Locator,
+        gpt_answerer: Any,
+        resume_component: Any,
+        question_selector: Optional[str] = None,
     ) -> Tuple[bool, str]:
         """Обрабатывает одиночный вопрос в анкете."""
         # 1. Extract Question Text
@@ -1176,6 +1183,7 @@ class PlaywrightJobManager:
         textarea = question.locator("textarea")
         if await textarea.count() > 0:
             answer = gpt_answerer.answer_question_textual_wide_range(question_text)
+            answer = resume_component.deanonymize_personal_information(answer)
             await textarea.fill(answer)
             return True, ""
 
