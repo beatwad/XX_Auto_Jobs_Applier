@@ -80,6 +80,18 @@ class OrderBy(BaseModel):
         return self
 
 
+class Show(BaseModel):
+    show_20: bool = True
+    show_50: bool = False
+    show_100: bool = False
+
+    @model_validator(mode="after")
+    def validate_show(self):
+        if sum(self.model_dump().values()) > 1:
+            raise ValueError("Только одно значение настроек show может быть True")
+        return self
+
+
 class Period(BaseModel):
     all_time: bool = False
     month: bool = False
@@ -116,6 +128,7 @@ class SearchConfig(BaseModel):
     job_blacklist: Optional[Union[str, List[str]]] = []
     order_by: Optional[OrderBy] = None
     period: Optional[Period] = None
+    show: Optional[Show] = None
     cover_letter: Optional[str] = None
     apply_once_at_company: Optional[bool] = True
     skip_companies_with_test: Optional[bool] = False

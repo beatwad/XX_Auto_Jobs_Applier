@@ -356,7 +356,7 @@ class PlaywrightJobManager:
         await self._set_vacancy_label()
         await self._set_order_by()
         await self._set_period()
-
+        await self._set_show()
         # 3) Start search
         await self._handle_interfering_messages()
         if not await safe_click(
@@ -811,6 +811,22 @@ class PlaywrightJobManager:
             return
         await safe_click(
             self.page, f"[data-qa='advanced-search__search_period-item-label_{days}']", timeout=3000
+        )
+
+    async def _set_show(self) -> None:
+        """Задает количество вакансий, которые будут отображаться на одной странице."""
+        logger.debug("Задаем количество вакансий, которые будут отображаться на одной странице")
+        show = self.search_params.get("show") or {}
+        key = self._first_true_key(show)
+        key_mapping = {"show_20": "20", "show_50": "50", "show_100": "100"}
+        if not key_mapping.get(key):
+            return
+
+        # New Magritte UI
+        await safe_click(
+            self.page,
+            f"[data-qa='advanced-search__items_on_page-item-label_{key_mapping[key]}']",
+            timeout=3000,
         )
 
     async def get_vacancies_from_page(self, page_num: int = 0) -> List[Dict[str, Any]]:

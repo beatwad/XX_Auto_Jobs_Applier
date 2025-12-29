@@ -15,8 +15,8 @@ from src.pydantic_models.config import SearchConfig, Secrets
 from src.utils.utils import load_yaml_file
 
 
-# TODO: comment playwright_manager.py methods
-# TODO: translate all English comments to Russian
+# TODO: check the whole pipeline
+# TODO: rename pydantic models to views
 # TODO: actualize tests
 
 
