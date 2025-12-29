@@ -228,8 +228,10 @@ class JobApplier:
             apply_result = "Skip", "Вакансия в черном списке"
             logger.warning("Вакансия в черном списке, пропускаем")
             pause(1, 2)
-
-        is_applied, reason = self._is_already_applied_to_job_or_company(job)
+        elif SEARCH_MODE is True:
+            is_applied, reason = self._vacancy_is_already_in_file(job["vacancy_id"])
+        else:
+            is_applied, reason = self._is_already_applied_to_job_or_company(job)
         if is_applied:
             apply_result = "Skip", reason
             logger.warning(f"Пропускаем вакансию по причине: {reason}")
@@ -324,6 +326,7 @@ class JobApplier:
                 job_description = JobDescription(
                     job_title=job_title,
                     company_name=company_name,
+                    vacancy_id=job["vacancy_id"],
                     link=vacancy["alternate_url"],
                     skills=skills,
                     cover_letter=cover_letter_text,
@@ -517,19 +520,26 @@ class JobApplier:
 
         # Проверяем по company_id и/или по названию вакансии
         if company_id and company_id in seen_companies:
-            seen_companies[company_id].append(job_info)
+            self._add_job_info_to_seen_companies(job_info, seen_companies[company_id])
         elif company_name in seen_companies:
-            seen_companies[company_name].append(job_info)
+            self._add_job_info_to_seen_companies(job_info, seen_companies[company_name])
         else:
             if company_id:
                 seen_companies[company_id] = [job_info]
             else:
                 seen_companies[company_name] = [job_info]
 
-        if result == "Success":
-            self._save_company_to_yaml(filename, companies)
-        else:
-            self._save_company_to_yaml(filename, companies)
+        self._save_company_to_yaml(filename, companies)
+
+    def _add_job_info_to_seen_companies(
+        self, job_info: Dict[str, str], company_vacancies: List[Dict[str, str]]
+    ) -> None:
+        """Проверить, не находится ли вакансия в списке уже просмотренных вакансий и если нет, то добавить ее в список"""
+        vacancy_id = job_info["vacancy_id"]
+        for company_vacancy in company_vacancies:
+            if vacancy_id in company_vacancy["vacancy_id"]:
+                return
+        company_vacancies.append(job_info)
 
     def _save_company_to_yaml(self, filename: str, companies: List[Dict[str, str]]) -> None:
         """Сохранить уже просмотренные компании и их вакансии в файл"""
@@ -616,6 +626,7 @@ class JobApplier:
                 f.write(80 * "=" + "\n")
                 f.write(f"Компания: {job_description.company_name}\n")
                 f.write(f"Вакансия: {job_description.job_title}\n")
+                f.write(f"ID вакансии: {job_description.vacancy_id}\n")
                 f.write(f"Оценка вакансии: {job_description.job_score}\n")
                 f.write(f"Навыки: {', '.join(job_description.skills)}\n")
                 f.write(f"Ссылка: {job_description.link}\n")
@@ -660,6 +671,14 @@ class JobApplier:
                     ) == self._sanitize_text(job_info["job_title"]):
                         logger.warning("Вакансия уже встречалась, пропускаем")
                         return True, "Вакансия уже встречалась"
+        return False, ""
+
+    def _vacancy_is_already_in_file(self, vacancy_id: str) -> Tuple[bool, str]:
+        """Проверить, не находится ли вакансия в файле с вакансиями"""
+        with open("job_descriptions.txt", "r", encoding="utf-8") as f:
+            for line in f:
+                if f"ID вакансии: {vacancy_id}" in line:
+                    return True, "Вакансия уже встречалась"
         return False, ""
 
     def _sanitize_text(self, text: str) -> str:

@@ -33,13 +33,15 @@ class Job(BaseModel):
 
 class JobDescription(BaseModel):
     """
-    Job description data structure representing a scraped vacancy description.
+    Job description data structure representing a scraped vacancy description
+    that is used in search mode.
     """
 
     model_config = ConfigDict(extra="allow")
 
     job_title: str = ""
     company_name: str = ""
+    vacancy_id: Optional[str] = None
     link: str = ""
     skills: List[str] = []
     cover_letter: str = ""
