@@ -15,6 +15,10 @@ from src.pydantic_models.config import SearchConfig, Secrets
 from src.utils.utils import load_yaml_file
 
 # TODO: check mulitpage search
+# TODO: replace all asyncio.sleep with pause_async
+# TODO: check birthday obtaining from resume
+# TODO: translate all English comments to Russian
+# TODO: actualize tests
 
 
 class ConfigError(Exception):

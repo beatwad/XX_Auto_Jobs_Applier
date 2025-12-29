@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, ConfigDict
 
@@ -30,3 +30,17 @@ class Job(BaseModel):
     description: str = ""
     skills: str = ""
 
+
+class JobDescription(BaseModel):
+    """
+    Job description data structure representing a scraped vacancy description.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    job_title: str = ""
+    company_name: str = ""
+    link: str = ""
+    skills: List[str] = []
+    cover_letter: str = ""
+    job_score: int = 0

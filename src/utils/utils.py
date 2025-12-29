@@ -22,7 +22,7 @@ chromeProfilePath = os.path.join(os.getcwd(), "chrome_profile", "hh_profile")
 
 
 def load_yaml_file(yaml_path: Path) -> dict:
-    """Загрузить настройки из YAML файла конфигурации"""
+    """Загрузить данные из YAML файла"""
     try:
         with open(yaml_path, "r", encoding="UTF-8") as stream:
             return yaml.safe_load(stream)
@@ -32,10 +32,12 @@ def load_yaml_file(yaml_path: Path) -> dict:
         raise ConfigError(f"Файл не найден: {yaml_path}")
 
 
-def save_yaml_file(yaml_path: Path, data: dict) -> None:
-    """Загрузить настройки из YAML файла конфигурации"""
+def save_yaml_file(yaml_path: Path, data: dict, sort_keys: bool = True) -> None:
+    """Сохранить данные в YAML файл"""
     with open(yaml_path, "w", encoding="UTF-8") as stream:
-        yaml.safe_dump(data, stream, allow_unicode=True, default_flow_style=False)
+        yaml.safe_dump(
+            data, stream, allow_unicode=True, default_flow_style=False, sort_keys=sort_keys
+        )
 
 
 def ensure_chrome_profile() -> str:

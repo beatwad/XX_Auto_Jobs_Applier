@@ -640,7 +640,7 @@ def test_apply_job(job_applier_with_params):
         patch("src.job_manager.job_applier.MONKEY_MODE", return_value=False),
         patch("src.job_manager.job_applier.RESUME_MODE", return_value=False),
         patch("src.job_manager.job_applier.SKILL_STAT_MODE", return_value=False),
-        patch("src.job_manager.job_applier.COVER_LETTER_MODE", return_value=False),
+        patch("src.job_manager.job_applier.SEARCH_MODE", return_value=False),
     ):
         result, _ = job_applier_with_params.apply_job(vacancy, company_name, job_title, job)
 
@@ -672,7 +672,7 @@ def test_send_response(job_applier_with_params):
         patch("src.job_manager.job_applier.MONKEY_MODE", return_value=False),
         patch("src.job_manager.job_applier.RESUME_MODE", return_value=False),
         patch("src.job_manager.job_applier.SKILL_STAT_MODE", return_value=False),
-        patch("src.job_manager.job_applier.COVER_LETTER_MODE", return_value=False),
+        patch("src.job_manager.job_applier.SEARCH_MODE", return_value=False),
     ):
         # Setup test data
         vacancy = {
@@ -716,7 +716,7 @@ def test_send_response(job_applier_with_params):
         patch("src.job_manager.job_applier.MONKEY_MODE", return_value=False),
         patch("src.job_manager.job_applier.RESUME_MODE", return_value=False),
         patch("src.job_manager.job_applier.SKILL_STAT_MODE", return_value=False),
-        patch("src.job_manager.job_applier.COVER_LETTER_MODE", return_value=False),
+        patch("src.job_manager.job_applier.SEARCH_MODE", return_value=False),
     ):
         vacancy = {
             "id": "123456",
@@ -757,7 +757,7 @@ def test_start_applying(job_applier_with_params):
         patch("src.job_manager.job_applier.MONKEY_MODE", return_value=False),
         patch("src.job_manager.job_applier.RESUME_MODE", return_value=False),
         patch("src.job_manager.job_applier.SKILL_STAT_MODE", return_value=False),
-        patch("src.job_manager.job_applier.COVER_LETTER_MODE", return_value=False),
+        patch("src.job_manager.job_applier.SEARCH_MODE", return_value=False),
     ):
         job_applier_with_params.success_applies_num = 2
         job_applier_with_params.previous_apply_number = 1

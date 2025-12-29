@@ -71,7 +71,7 @@ class PlaywrightJobManager:
 
         # Some flows show an account-type chooser first (employer vs applicant).
         # We always want applicant/employee ("Я ищу работу") flow.
-        await asyncio.sleep(1)
+        await self.pause_async(1, 2)
         logger.info("Handling account type chooser")
         await self._handle_account_type_chooser_if_present()
 
@@ -154,7 +154,7 @@ class PlaywrightJobManager:
 
         chooser_container = self.page.locator("//*[@data-qa='account-type-cards']")
         applicant_card = self.page.locator(
-            "[data-qa*='account-type-card-APPLICANT']/ancestor::label[1]"
+            "xpath=//*[contains(@data-qa, 'account-type-card-APPLICANT')]/ancestor::label[1]"
         )
         submit_btn = self.page.locator("//*[@data-qa='submit-button']")
 
@@ -162,7 +162,8 @@ class PlaywrightJobManager:
             has_container = (await chooser_container.count()) > 0
             has_applicant = (await applicant_card.count()) > 0
             has_submit = (await submit_btn.count()) > 0
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Error checking account type chooser: {e}")
             return
 
         if not (has_container or (has_applicant and has_submit)):

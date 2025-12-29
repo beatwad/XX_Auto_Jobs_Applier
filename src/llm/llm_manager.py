@@ -21,7 +21,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI, HarmBlockThreshold, H
 from Levenshtein import distance
 
 import src.llm.prompts as prompts
-from src.app_config import JOB_IS_INTERESTING_THRESH, LLM_MODEL, LLM_MODEL_TYPE, TEMPERATURE
+from src.app_config import LLM_MODEL, LLM_MODEL_TYPE, TEMPERATURE
 from src.pydantic_models.llm import ContactInfo, JobIsInteresting, ResumeIsInteresting, BaseModel
 from src.constants import PRICE_DICT
 from src.logger_config import logger
@@ -483,6 +483,7 @@ class GPTAnswerer:
 
     def __init__(self, llm_api_key: str, llm_proxy: str):
         self.job = None
+        self.last_job_score = None
         self.ai_adapter = AIAdapter(llm_api_key, llm_proxy)
         self.llm_cheap = LoggerChatModel(self.ai_adapter)
         self.chains = {
@@ -491,6 +492,9 @@ class GPTAnswerer:
             ),
             "resume_is_interesting": self._create_pydantic_chain(
                 prompts.resume_is_interesting, ResumeIsInteresting
+            ),
+            "extract_skills_from_vacancy": self._create_chain(
+                prompts.extract_skills_from_vacancy_template
             ),
             "text_question": self._create_chain(prompts.text_question_answer_template),
             "one_answer_from_options": self._create_chain(prompts.options_template),
@@ -548,6 +552,17 @@ class GPTAnswerer:
         """Устанавливаем параметры поиска вакансий."""
         logger.info(f"Устанавливаем параметры поиска вакансий: {parameters}")
         self.search_parameters = transform_search_config_data(parameters)
+
+    def extract_skills_from_vacancy(self, job_description: str) -> list[str]:
+        """Extract skills from vacancy"""
+        chain = self.chains["extract_skills_from_vacancy"]
+        output = chain.invoke({"job_description": job_description})
+        output = output.replace("[", "").replace("]", "")
+        output = output.replace("'", "").replace('"', "")
+        output = output.split(",")
+        output = [skill.strip().lower() for skill in output if skill.strip()]
+        logger.info(f"Извлечены навыки из вакансии: {output}")
+        return output
 
     def summarize_job_description(self, text: str) -> str:
         """Создаем краткое описание вакансии"""
@@ -627,7 +642,7 @@ class GPTAnswerer:
         logger.info(f"Лучшие варианты ответа: {best_options}")
         return best_options
 
-    def job_is_interesting(self) -> bool | None:
+    def job_is_interesting(self) -> Dict[str, Any] | None:
         """
         Спрашиваем у LLM, может ли быть интересна
         данная вакансия с учетом нашего резюме, навыков и интересов
@@ -645,13 +660,11 @@ class GPTAnswerer:
         except Exception:
             tb_str = traceback.format_exc()
             logger.error(f"Ошибка при вызове LLM\n{tb_str}")
+            self.last_job_score = None
             return None
-        logger.info(f"Ответ LLM: '{output}'")
-        logger.info(f"Степень 'интересности' вакансии: {output.score}")
-        if output.score < JOB_IS_INTERESTING_THRESH:
-            logger.info(f"Работа не интересна: {output.reasoning}")
-            return False
-        return True
+        logger.info(f"Оценка 'интересности' вакансии: {output.score}")
+        logger.info(f"Объяснение оценки 'интересности': '{output.reasoning}'")
+        return output.model_dump()
 
     def resume_is_interesting(self) -> Tuple[str, str, str, str]:
         """
