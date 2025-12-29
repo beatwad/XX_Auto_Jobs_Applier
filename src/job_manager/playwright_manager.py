@@ -24,8 +24,7 @@ from src.pydantic_models.resume import Resume
 
 class PlaywrightJobManager:
     """
-    Manages Playwright browser instance, authentication, and high-level interactions.
-    Replaces HeadHunterAPI and Authenticator.
+    Управляет экземпляром браузера Playwright, аутентификацией и высокоуровневыми взаимодействиями.
     """
 
     def __init__(self, secrets: dict):
@@ -38,12 +37,12 @@ class PlaywrightJobManager:
         self.search_page_url = ""
 
     async def initialize(self):
-        """Initialize browser, context, and page."""
+        """Инициализирует браузер, контекст и страницу."""
         if not self.browser:
             self.browser, self.context, self.page = await create_playwright_browser()
 
     async def close(self):
-        """Close browser resources."""
+        """Закрывает ресурсы браузера."""
         if self.context:
             await save_browser_session(self.context)
             await self.context.close()
@@ -54,7 +53,7 @@ class PlaywrightJobManager:
         self.page = None
 
     async def ensure_logged_in(self) -> bool:
-        """Check if logged in, if not, perform login."""
+        """Проверяет авторизацию, если нет - выполняет вход."""
         if not self.page:
             await self.initialize()
         logger.info("Checking login status...")
@@ -64,7 +63,7 @@ class PlaywrightJobManager:
         return True
 
     async def _perform_login(self) -> bool:
-        """Perform login flow."""
+        """Выполняет процесс входа."""
         # Click login button
         if not await safe_click(self.page, "[data-qa*='login']"):
             logger.error("Could not find login button")
@@ -125,7 +124,7 @@ class PlaywrightJobManager:
         return False
 
     async def _is_logged_in(self) -> bool:
-        """Check if logged in."""
+        """Проверяет, выполнен ли вход."""
         logger.info("Navigating to login page...")
         try:
             await self.page.goto("https://hh.ru/employer", timeout=10000)
@@ -147,8 +146,8 @@ class PlaywrightJobManager:
 
     async def _handle_account_type_chooser_if_present(self) -> None:
         """
-        HH can show an intermediate page asking which account type to use.
-        If it appears, select applicant ("Я ищу работу") and click "Войти".
+        Обрабатывает выбор типа аккаунта (работодатель/соискатель), если он появляется.
+        Если появляется, выбирает соискателя ("Я ищу работу") и нажимает "Войти".
         """
         if not self.page:
             return
@@ -190,8 +189,9 @@ class PlaywrightJobManager:
 
     async def _select_email_credential_type_if_present(self) -> None:
         """
-        HH applicant login can show a credential type switcher (PHONE vs EMAIL).
-        If present and PHONE is selected, switch to EMAIL ("Почта").
+        Переключает тип входа на Email, если выбран телефон.
+        Вход для соискателя HH может показывать переключатель типа учетных данных (ТЕЛЕФОН vs EMAIL).
+        Если присутствует и выбран ТЕЛЕФОН, переключается на EMAIL ("Почта").
         """
         if not self.page:
             return
@@ -222,7 +222,7 @@ class PlaywrightJobManager:
         await self.pause_async(0.5, 1)
 
     async def _handle_captcha(self, submit_selector: str):
-        """Handle captcha if it appears."""
+        """Обрабатывает капчу, если она появляется."""
         captcha_img = self.page.locator("//*[@data-qa='account-captcha-picture']")
 
         start_time = datetime.now()
@@ -287,10 +287,11 @@ class PlaywrightJobManager:
                 await self.pause_async(5, 6)
 
     async def pause_async(self, low=0.5, high=1.0):
-        """Async pause."""
+        """Асинхронная пауза. Время паузы выбирается случайно в пределах между low и high секунд."""
         await asyncio.sleep(random.uniform(low, high))
 
     async def start_search(self, resume_id: str) -> None:
+        """Начинает поиск вакансий для указанного резюме."""
         url = f"https://hh.ru/resume/{resume_id}"
         await self.page.goto(url)
         logger.info(f"Переход на страницу: {url}")
@@ -300,7 +301,7 @@ class PlaywrightJobManager:
         self, search_params: Dict[str, Any], resume_id: str
     ) -> None:
         """
-        Зайти на страницу расширенного поиска hh.ru и выставить настройки из `search_config.yaml`.
+        Заходит на страницу расширенного поиска hh.ru и выставляет настройки из `search_config.yaml`.
 
         `search_params` ожидается в "сыром" виде (как в YAML / `SearchConfig.model_dump()`).
         """
@@ -372,6 +373,7 @@ class PlaywrightJobManager:
 
     @staticmethod
     def _split_multi(value: Any) -> List[str]:
+        """Разделяет строку с несколькими значениями (через запятую или точку с запятой)."""
         if not value:
             return []
         if isinstance(value, list):
@@ -384,16 +386,19 @@ class PlaywrightJobManager:
 
     @staticmethod
     def _true_keys(value: Any) -> List[str]:
+        """Возвращает список ключей словаря, значения которых True."""
         if not isinstance(value, dict):
             return []
         return [k for k, v in value.items() if v is True]
 
     @staticmethod
     def _first_true_key(value: Any) -> Optional[str]:
+        """Возвращает первый ключ словаря с значением True."""
         keys = PlaywrightJobManager._true_keys(value)
         return keys[0] if keys else None
 
     async def _click_best_suggestion(self, desired: str, suggestion_xpath: str) -> bool:
+        """Кликает по наилучшему предложению из выпадающего списка (на основе расстояния Левенштейна)."""
         desired_norm = (desired or "").strip().lower()
         if not desired_norm:
             return False
@@ -425,6 +430,7 @@ class PlaywrightJobManager:
             return False
 
     async def _set_keywords(self) -> None:
+        """Устанавливает ключевые слова."""
         logger.debug("Вводим ключевые слова")
         keywords = self.search_params.get("keywords") or self.search_params.get("text") or ""
         keywords = str(keywords).strip()
@@ -444,6 +450,7 @@ class PlaywrightJobManager:
         await self.pause_async(0.5, 1)
 
     async def _set_search_field(self) -> None:
+        """Задает настройки области поиска (в названии вакансии, компании, описании)."""
         logger.debug("Задаем настройки области поиска")
         search_field = self.search_params.get("search_field") or {}
         enabled = set(self._true_keys(search_field))
@@ -476,6 +483,7 @@ class PlaywrightJobManager:
             await self.pause_async(0.5, 1)
 
     async def _set_words_to_exclude(self) -> None:
+        """Задает слова для исключения."""
         logger.debug("Задаем слова для исключения")
         words = self.search_params.get("words_to_exclude") or ""
         words = str(words).strip()
@@ -488,7 +496,8 @@ class PlaywrightJobManager:
 
     async def _set_tree_selector_single(self, open_text: str, value: str) -> None:
         """
-        Open a "tree selector" modal (specialization/industry), type value, pick best match, submit.
+        Выбирает одно значение в модальном окне с древовидным селектором (специализация/отрасль).
+        Открывает модалку, вводит значение, выбирает лучшее совпадение, подтверждает.
         """
         value = str(value or "").strip()
         if not value:
@@ -537,6 +546,7 @@ class PlaywrightJobManager:
         await self.pause_async(0.5, 1)
 
     async def _set_professional_role(self) -> None:
+        """Задает профессиональную роль."""
         logger.debug("Задаем профессиональную роль")
         value = self.search_params.get("professional_role") or ""
         value = str(value).strip()
@@ -545,6 +555,7 @@ class PlaywrightJobManager:
         await self._set_tree_selector_single("Указать специализации", value)
 
     async def _set_industry(self) -> None:
+        """Задает отрасль."""
         logger.debug("Задаем отрасль")
         value = self.search_params.get("industry") or ""
         value = str(value).strip()
@@ -553,6 +564,7 @@ class PlaywrightJobManager:
         await self._set_tree_selector_single("Указать отрасль компании", value)
 
     async def _set_area(self) -> None:
+        """Задает регион."""
         logger.debug("Задаем регион")
         values = self._split_multi(self.search_params.get("area"))
         if not values:
@@ -576,6 +588,7 @@ class PlaywrightJobManager:
             await self._click_best_suggestion(region, f"xpath={suggestion_xpath}")
 
     async def _set_districts(self) -> None:
+        """Задает районы."""
         logger.debug("Задаем районы")
         values = self._split_multi(self.search_params.get("districts"))
         if not values:
@@ -595,6 +608,7 @@ class PlaywrightJobManager:
             await self._click_best_suggestion(district, f"xpath={suggestion_xpath}")
 
     async def _set_salary_and_currency(self) -> None:
+        """Задает зарплату и валюту."""
         logger.debug("Задаем зарплату и валюту")
         salary = self.search_params.get("salary")
         if salary is not None and salary != "":
@@ -643,6 +657,7 @@ class PlaywrightJobManager:
         )
 
     async def _set_only_with_salary(self) -> None:
+        """Задает фильтр только с зарплатой."""
         logger.debug("Задаем фильтр только с зарплатой")
         only = self.search_params.get("only_with_salary")
         if only is not True:
@@ -672,6 +687,7 @@ class PlaywrightJobManager:
                 return
 
     async def _set_education(self) -> None:
+        """Задает образование."""
         logger.debug("Задаем образование")
         edu = self.search_params.get("education") or {}
         mapping = {
@@ -690,6 +706,7 @@ class PlaywrightJobManager:
             )
 
     async def _set_experience(self) -> None:
+        """Задает опыт работы."""
         logger.debug("Задаем опыт работы")
         exp = self.search_params.get("experience") or {}
         key = self._first_true_key(exp)
@@ -703,6 +720,7 @@ class PlaywrightJobManager:
         )
 
     async def _set_employment(self) -> None:
+        """Задает тип занятости."""
         logger.debug("Задаем тип занятости")
         employment = self.search_params.get("employment") or {}
         enabled = self._true_keys(employment)
@@ -736,6 +754,7 @@ class PlaywrightJobManager:
             await self.pause_async(0.5, 1)
 
     async def _set_job_format(self) -> None:
+        """Задает формат работы."""
         logger.debug("Задаем формат работы")
         job_format = self.search_params.get("job_format") or {}
         enabled = self._true_keys(job_format)
@@ -752,6 +771,7 @@ class PlaywrightJobManager:
                 continue
 
     async def _set_vacancy_label(self) -> None:
+        """Задает метки вакансий."""
         logger.debug("Задаем метки вакансий")
         labels = self.search_params.get("vacancy_label") or {}
         for key in self._true_keys(labels):
@@ -761,6 +781,7 @@ class PlaywrightJobManager:
             # advanced-search__label-item-label_accept_teens
 
     async def _set_order_by(self) -> None:
+        """Задает сортировку."""
         logger.debug("Задаем сортировку")
         order_by = self.search_params.get("order_by") or {}
         key = self._first_true_key(order_by)
@@ -772,6 +793,7 @@ class PlaywrightJobManager:
         )
 
     async def _set_period(self) -> None:
+        """Задает период поиска."""
         logger.debug("Задаем период поиска")
         period = self.search_params.get("period") or {}
         key = self._first_true_key(period)
@@ -792,7 +814,7 @@ class PlaywrightJobManager:
         )
 
     async def get_vacancies_from_page(self, page_num: int = 0) -> List[Dict[str, Any]]:
-        """Получить вакансии с очередной страницы"""
+        """Получить вакансии с очередной страницы."""
         # Pagination logic: check if we are on the requested page
         try:
             if not self.search_page_url:
@@ -828,7 +850,7 @@ class PlaywrightJobManager:
         return vacancies
 
     async def _parse_vacancy_card(self, card: Locator) -> Optional[Dict[str, Any]]:
-        """Parse a single vacancy card from SERP."""
+        """Парсит карточку вакансии из поисковой выдачи."""
         try:
             # Title element
             title_el = card.locator('[data-qa="serp-item__title"]').first
@@ -879,7 +901,7 @@ class PlaywrightJobManager:
             return None
 
     async def get_vacancy_full_info(self, vacancy_url: str) -> Dict[str, Any]:
-        """Get full vacancy info for LLM."""
+        """Получает полную информацию о вакансии для LLM."""
         await self.page.goto(vacancy_url)
         logger.info(f"Переход на страницу: {vacancy_url}")
 
@@ -928,7 +950,7 @@ class PlaywrightJobManager:
         }
 
     async def _handle_interfering_messages(self):
-        """Handle cookies, notifications, and other popups."""
+        """Обрабатывает мешающие сообщения (куки, уведомления, попапы)."""
         # Cookies
         cookies_btn = self.page.locator("xpath=//*[text()='Понятно']")
         if await cookies_btn.count() > 0:
@@ -948,8 +970,8 @@ class PlaywrightJobManager:
         self, vacancy_url: str, cover_letter: str, gpt_answerer: Any, resume_titles: List[str]
     ) -> Tuple[str, str]:
         """
-        Apply to vacancy. Returns (Result, Message).
-        Result: 'Success', 'Skip', 'Error', 'Limit'
+        Откликается на вакансию. Возвращает (Результат, Сообщение).
+        Результат: 'Success', 'Skip', 'Error', 'Limit'
         """
         if self.page.url != vacancy_url:
             await self.page.goto(vacancy_url)
@@ -1044,7 +1066,7 @@ class PlaywrightJobManager:
     async def _handle_question(
         self, question: Locator, gpt_answerer: Any, question_selector: Optional[str] = None
     ) -> Tuple[bool, str]:
-        """Handle single question."""
+        """Обрабатывает одиночный вопрос в анкете."""
         # 1. Extract Question Text
         question_text_el = question.locator('[data-qa="task-question"]').first
         if await question_text_el.count() > 0:
@@ -1154,7 +1176,7 @@ class PlaywrightJobManager:
         return False, "Unknown question type"
 
     async def get_my_resumes_from_browser(self) -> Dict[str, Any]:
-        """Get resumes list via browser fetch or scraping."""
+        """Получает список резюме пользователя через браузер."""
         await self.ensure_logged_in()
         # Open "Резюме и профиль" page from main menu
         menu_selector = '[data-qa="mainmenu_profileAndResumes"]'
@@ -1214,10 +1236,10 @@ class PlaywrightJobManager:
 
     async def get_resume_content_from_browser(self, resume_id: str) -> Dict[str, Any]:
         """
-        Open hh.ru resume page and scrape key sections.
+        Открывает страницу резюме hh.ru и парсит ключевые разделы.
 
-        We keep backward compatibility by returning API-shaped data when possible,
-        and always attaching scraped sections under `scraped_sections`.
+        Сохраняет обратную совместимость, возвращая данные в формате API, когда это возможно,
+        и всегда добавляет спарсенные разделы.
         """
         resume = {}
 
@@ -1293,7 +1315,7 @@ class PlaywrightJobManager:
         return Resume(**resume).model_dump()
 
     async def raise_resume(self) -> None:
-        """Raise resume in search."""
+        """Поднимает резюме в поиске."""
         raise_btn_xpath = "xpath=//*[contains(text(), 'Поднять в') and contains(text(), 'поиске')]"
         if await safe_click(self.page, raise_btn_xpath):
             await self.pause_async(2, 3)
@@ -1302,6 +1324,7 @@ class PlaywrightJobManager:
             logger.info("Резюме пока нельзя поднять")
 
     async def _get_first_name(self) -> str:
+        """Получает имя из профиля."""
         first_name = self.page.locator('[data-qa="profile-common-card-firstname"]')
         if await first_name.count() > 0:
             first_name = await first_name.first.text_content()
@@ -1309,6 +1332,7 @@ class PlaywrightJobManager:
         return first_name
 
     async def _get_other_links(self) -> Tuple[str, str]:
+        """Получает другие ссылки (LinkedIn, Habr Career)."""
         linkedin = ""
         habr_career = ""
         other_links = await self.page.locator(
@@ -1324,6 +1348,7 @@ class PlaywrightJobManager:
         return linkedin, habr_career
 
     async def _get_middle_name(self) -> str:
+        """Получает отчество из профиля."""
         middle_name = self.page.locator('[data-qa*="profile-common-edit-middleName"]')
         if await middle_name.count() > 0:
             middle_name = await middle_name.first.get_attribute("value")
@@ -1331,6 +1356,7 @@ class PlaywrightJobManager:
         return middle_name
 
     async def _get_birthday(self) -> str:
+        """Получает дату рождения."""
         birthday = self.page.locator('[data-qa="profile-common-edit-birthday"]')
         if await birthday.count() > 0:
             birthday = await birthday.first.get_attribute("value")
@@ -1338,6 +1364,7 @@ class PlaywrightJobManager:
         return birthday
 
     async def _get_sex_citizenship_and_legal_auth(self) -> Tuple[str, str, str]:
+        """Получает пол, гражданство и разрешение на работу."""
         select_activators = await self.page.locator('[data-qa="magritte-select-activator"]').all()
         sex = ""
         citizenship = ""
@@ -1354,6 +1381,7 @@ class PlaywrightJobManager:
         return sex, citizenship, work_permission
 
     async def _get_last_name(self) -> str:
+        """Получает фамилию."""
         last_name = self.page.locator('[data-qa="profile-common-card-lastname"]')
         if await last_name.count() > 0:
             last_name = await last_name.first.text_content()
@@ -1361,6 +1389,7 @@ class PlaywrightJobManager:
         return last_name
 
     async def _get_telegram(self) -> str:
+        """Получает Telegram из контактов."""
         telegram = self.page.locator("xpath=//*[contains(text(), 'Telegram')]")
         if await telegram.count() > 0:
             parent = telegram.first.locator("../../../../../../../..")
@@ -1370,6 +1399,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_whatsapp(self) -> str:
+        """Получает WhatsApp из контактов."""
         whatsapp = self.page.locator("xpath=//*[contains(text(), 'Whatsapp')]")
         if await whatsapp.count() > 0:
             parent = whatsapp.first.locator("../../../../../../../..")
@@ -1379,6 +1409,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_area(self) -> str:
+        """Получает местоположение (город)."""
         area = self.page.locator("xpath=//*[contains(text(), 'Где живёте')]")
         if await area.count() > 0:
             parent = area.first.locator("../../../../../../../..")
@@ -1389,6 +1420,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_driving_license(self) -> str:
+        """Получает информацию о водительских правах."""
         driving_license = self.page.locator("xpath=//*[contains(text(), 'Опыт вождения')]")
         if await driving_license.count() > 0:
             parent = driving_license.first.locator("../../..")
@@ -1400,6 +1432,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_resume_phone(self) -> str:
+        """Получает телефон из резюме."""
         phone = self.page.locator('[data-qa="resume-contact-phone-value-text"]')
         if await phone.count() > 0:
             phone = await phone.first.text_content()
@@ -1408,6 +1441,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_resume_email(self) -> str:
+        """Получает email из резюме."""
         email = self.page.locator('[data-qa="resume-contact-email-value-preferred-text"]')
         if await email.count() > 0:
             email = await email.first.text_content()
@@ -1416,6 +1450,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_salary(self) -> str:
+        """Получает зарплату из резюме."""
         salary = self.page.locator('[data-qa="title-description"]')
         if await salary.count() > 0:
             salary = await salary.text_content()
@@ -1424,6 +1459,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_job_type(self) -> str:
+        """Получает тип занятости из резюме."""
         job_type = self.page.locator("xpath=//*[contains(text(), 'Тип занятости:')]")
         if await job_type.count() > 0:
             parent = job_type.first.locator("..")
@@ -1434,6 +1470,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_job_format(self) -> str:
+        """Получает формат работы из резюме."""
         job_format = self.page.locator("xpath=//*[contains(text(), 'Формат работы:')]")
         if await job_format.count() > 0:
             parent = job_format.first.locator("..")
@@ -1444,6 +1481,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_time_to_travel(self) -> str:
+        """Получает желательное время в пути до работы."""
         time_to_travel = self.page.locator("xpath=//*[contains(text(), 'Желательное время')]")
         if await time_to_travel.count() > 0:
             parent = time_to_travel.first.locator("..")
@@ -1454,6 +1492,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_readiness_to_job_trips(self) -> str:
+        """Получает готовность к командировкам."""
         ready_to_job_trip = self.page.locator("xpath=//*[contains(text(), 'Командировки:')]")
         if await ready_to_job_trip.count() > 0:
             parent = ready_to_job_trip.first.locator("..")
@@ -1464,6 +1503,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_total_experience(self) -> str:
+        """Получает общий опыт работы."""
         total_experience = self.page.locator("xpath=//*[contains(text(), 'Опыт работы:')]")
         if await total_experience.count() > 0:
             parent = total_experience.first.locator("..")
@@ -1474,6 +1514,7 @@ class PlaywrightJobManager:
         return ""
 
     async def _get_experience(self) -> str:
+        """Получает опыт работы (описание)."""
         experience = self.page.locator('[data-qa="resume-list-card-experience"]')
         group_locators = experience.locator('[class^="group--"]')
         experience_texts = await group_locators.all_text_contents()
@@ -1484,6 +1525,7 @@ class PlaywrightJobManager:
         return experience
 
     async def _get_skills(self) -> str:
+        """Получает навыки."""
         skill_card = self.page.locator("[data-qa='skills-card']")
         skills = skill_card.locator('[class^="magritte-tag__label"]')
         skills = await skills.all_text_contents()
@@ -1491,6 +1533,7 @@ class PlaywrightJobManager:
         return skills
 
     async def _get_educations(self) -> str:
+        """Получает образование."""
         education_card = self.page.locator("[data-qa='resume-list-card-education']")
         educations = education_card.locator('[data-qa="cell-text-content"]')
         educations = await educations.all_text_contents()
@@ -1498,12 +1541,14 @@ class PlaywrightJobManager:
         return educations
 
     async def _get_about_me(self) -> str:
+        """Получает информацию 'Обо мне'."""
         about_me = self.page.locator("[data-qa='resume-editor-about']")
         about_me = await about_me.all_text_contents()
         about_me = "\n".join(about_me)
         return about_me
 
     async def _get_recommendations(self) -> str:
+        """Получает рекомендации."""
         recommendations = self.page.locator("[data-qa='resume-list-card-recommendation']")
         recommendations_locator = recommendations.locator('[data-qa="cell-text-content"]')
         recommendations = await recommendations_locator.all_text_contents()
@@ -1511,6 +1556,7 @@ class PlaywrightJobManager:
         return recommendations
 
     async def _get_additional_education(self) -> str:
+        """Получает дополнительное образование."""
         additional_education = self.page.locator("[data-qa='resume-list-card-additionalEducation']")
         additional_education_locator = additional_education.locator('[data-qa="cell-text-content"]')
         additional_education = await additional_education_locator.all_text_contents()
@@ -1518,6 +1564,7 @@ class PlaywrightJobManager:
         return additional_education
 
     async def _get_exams(self) -> str:
+        """Получает информацию об экзаменах/тестах."""
         exams = self.page.locator("[data-qa='resume-list-card-certificate']")
         exams_locator = exams.locator('[data-qa="cell-text-content"]')
         exams = await exams_locator.all_text_contents()
@@ -1530,6 +1577,7 @@ class PlaywrightJobManager:
         return exams
 
     async def _get_certificates(self) -> str:
+        """Получает сертификаты."""
         certificates = self.page.locator("[data-qa='resume-list-card-certificate']")
         certificates_locator = certificates.locator('[data-qa="cell-text-content"]')
         certificates = await certificates_locator.all_text_contents()

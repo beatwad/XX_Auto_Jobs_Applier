@@ -554,7 +554,7 @@ class GPTAnswerer:
         self.search_parameters = transform_search_config_data(parameters)
 
     def extract_skills_from_vacancy(self, job_description: str) -> list[str]:
-        """Extract skills from vacancy"""
+        """Извлекаем список навыков из описания вакансии"""
         chain = self.chains["extract_skills_from_vacancy"]
         output = chain.invoke({"job_description": job_description})
         output = output.replace("[", "").replace("]", "")
