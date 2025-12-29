@@ -35,6 +35,7 @@ class PlaywrightJobManager:
         self.page: Optional[Page] = None
         self.login = secrets.get("hh_login")
         self.password = secrets.get("hh_password")
+        self.search_page_url = ""
 
     async def initialize(self):
         """Initialize browser, context, and page."""
@@ -792,14 +793,13 @@ class PlaywrightJobManager:
 
     async def get_vacancies_from_page(self, page_num: int = 0) -> List[Dict[str, Any]]:
         """Получить вакансии с очередной страницы"""
-        if not self.page:
-            await self.initialize()
-
         # Pagination logic: check if we are on the requested page
         try:
-            current_url = self.page.url
-            if "hh.ru" in current_url:
-                parsed = urllib.parse.urlparse(current_url)
+            if not self.search_page_url:
+                self.search_page_url = self.page.url
+
+            if "hh.ru" in self.search_page_url:
+                parsed = urllib.parse.urlparse(self.search_page_url)
                 query = urllib.parse.parse_qs(parsed.query)
                 current_page_param = query.get("page", ["0"])[0]
 
@@ -807,6 +807,7 @@ class PlaywrightJobManager:
                     query["page"] = [str(page_num)]
                     new_query = urllib.parse.urlencode(query, doseq=True)
                     new_url = urllib.parse.urlunparse(parsed._replace(query=new_query))
+                    self.search_page_url = new_url
                     logger.info(f"Переходим на страницу {page_num}: {new_url}")
                     await self.page.goto(new_url)
                     await asyncio.sleep(2)
