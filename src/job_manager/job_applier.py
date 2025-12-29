@@ -25,7 +25,7 @@ from src.utils.utils import (
     save_yaml_file,
     sleep,
 )
-from src.pydantic_models.job import Job, JobDescription
+from src.views.job import Job, JobDescription
 
 search_config = load_yaml_file(SEARCH_CONFIG_FILE)
 FIXED_COVER_LETTER = search_config.get("cover_letter")

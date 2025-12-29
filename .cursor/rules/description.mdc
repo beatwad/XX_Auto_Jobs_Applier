@@ -49,7 +49,7 @@
   - `llm/`: Interfaces with LLM providers and prompt management.
     - `llm_manager.py`: Manages interactions with LLM providers.
     - `prompts.py`: Stores prompt templates.
-  - `pydantic_models/`: Data models for validation and typing.
+  - `views/`: Data models for validation and typing.
     - `config.py`: Configuration models.
     - `job.py`: Job vacancy models.
     - `llm.py`: LLM related models.

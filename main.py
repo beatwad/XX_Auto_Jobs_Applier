@@ -11,12 +11,11 @@ from src.job_manager.resume_scraper import ResumeScraper
 from src.job_manager.search_customizer import SearchCustomizer
 from src.llm.llm_manager import GPTAnswerer
 from src.logger_config import logger
-from src.pydantic_models.config import SearchConfig, Secrets
+from src.views.config import SearchConfig, Secrets
 from src.utils.utils import load_yaml_file
 
 
-# TODO: check the whole pipeline
-# TODO: rename pydantic models to views
+# TODO: check the full job application pipeline
 # TODO: actualize tests
 
 

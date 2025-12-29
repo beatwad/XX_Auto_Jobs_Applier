@@ -39,7 +39,7 @@ def transform_resume_data(data: dict) -> str:
     """
     Transforms resume YAML data into a human-readable string.
     Fields/sections are omitted if their data is missing or empty.
-    Supports the Resume structure from src/pydantic_models/resume.py.
+    Supports the Resume structure from src/views/resume.py.
     """
     if not isinstance(data, dict) or not data:
         return "Нет данных для отображения в резюме."
@@ -209,7 +209,7 @@ def transform_vacancy_data(data: dict) -> str:
     """
     Transforms vacancy YAML data into a human-readable string.
     Fields/sections are omitted if their data is missing or empty.
-    Supports the Job structure from src/pydantic_models/job.py.
+    Supports the Job structure from src/views/job.py.
     """
     if not isinstance(data, dict) or not data:
         return "Нет данных для отображения вакансии."

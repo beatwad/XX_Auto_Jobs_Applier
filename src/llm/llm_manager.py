@@ -22,7 +22,7 @@ from Levenshtein import distance
 
 import src.llm.prompts as prompts
 from src.app_config import LLM_MODEL, LLM_MODEL_TYPE, TEMPERATURE
-from src.pydantic_models.llm import ContactInfo, JobIsInteresting, ResumeIsInteresting, BaseModel
+from src.views.llm import ContactInfo, JobIsInteresting, ResumeIsInteresting, BaseModel
 from src.constants import PRICE_DICT
 from src.logger_config import logger
 from src.utils.json_to_readable import transform_search_config_data, transform_vacancy_data

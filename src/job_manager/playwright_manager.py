@@ -19,7 +19,7 @@ from src.utils.browser_utils import (
     get_clean_text,
 )
 from src.utils.utils import sanitize_text
-from src.pydantic_models.resume import Resume
+from src.views.resume import Resume
 
 
 class PlaywrightJobManager:
