@@ -56,10 +56,8 @@ Determine if the candidate is suitable for this job based on the provided inform
 - If the job aligns with one or more of the candidate’s interests, add 10 point to the overall score.
 - If vacancy doesn't match one or more of search parameters, subtract 20 points from the overall score for each search parameter that it doesn't match.
 - Provide a brief justification for the score, indicating which requirements are met and which are not.
-Output format (strictly follow this format):
-Score: [numeric score]
-Reasoning: [brief explanation]
-Do not include anything else in the response beyond the score and reasoning.
+##Output Format##
+{format_instructions}
 """
 
 # Промпт для определения степени интересности резюме с точки зрения его улучшения
@@ -96,12 +94,8 @@ This feedback will help us identify candidates who could be highly employable on
 - Assign a resume quality score from 1 to 10, where 1 means the resume is unprofessionally prepared and barely reflects the candidate’s qualifications and experience, and 10 means the resume is professionally crafted and fully reflects the candidate’s qualifications and experience.
 - Evaluate the candidate’s potential solvency based on their current profession, experience, qualifications, and desired salary.
 - Assign a solvency score from 1 to 10, where 1 means the candidate likely has no disposable income, and 10 means the candidate is fully solvent and likely has a significant amount of disposable income.
-Output format (strictly follow this format):
-Demand Score: [numeric job market demand score from 1 to 10]
-Resume Score: [numeric resume quality score from 1 to 10]
-Solvency Score: [numeric potential solvency score from 1 to 10]
-Reasoning: [brief explanation of all three scores]
-Do not include anything else in the response beyond the three scores and reasoning.
+##Output Format##
+{format_instructions}
 """
 
 # Prompt for extracting all skills required for a vacancy
@@ -221,13 +215,8 @@ No info
 parse_contacts_template = """
 You are an expert in career development, recruitment, and personnel management with extensive experience in crafting, analyzing, and optimizing resumes.
 Parse the provided resume and extract the contact information about user's telegram, email, phone number, and LinkedIn profile.
-Output format (strictly follow this format):
-Telegram: [Telegram username or link, if available, otherwise "No info"]
-Whatsapp: [WhatsApp number, if available, otherwise "No info"]
-Email: [email address, if available, otherwise "No info"]
-Phone: [phone number, if available, otherwise "No info"]
-LinkedIn: [LinkedIn profile link, if available, otherwise "No info"]
-Do not include anything else in the response beyond the score and reasoning.
+##Output Format##
+{format_instructions}
 
 ##Resume##
 ```

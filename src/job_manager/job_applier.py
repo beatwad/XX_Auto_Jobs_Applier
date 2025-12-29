@@ -77,6 +77,10 @@ class JobApplier:
         self.failed_companies = self._load_companies_from_yaml("failed.yaml")
         # загрузить список вопросов, на которые уже были даны ответы
         self.seen_answers = self._load_data_from_yaml("answers.yaml")
+        # загрузить список просмотренных вакансий
+        self.seen_job_descriptions = self._load_seen_job_descriptions_from_file(
+            "job_descriptions.txt"
+        )
         # загрузить статистику по самым востребованным навыкам в вакансиях
         self.skill_stat = self._load_data_from_yaml("skill_stat.yaml")
         # загрузить кэш с информацией о последнем поиске
@@ -229,7 +233,7 @@ class JobApplier:
             logger.warning("Вакансия в черном списке, пропускаем")
             pause(1, 2)
         elif SEARCH_MODE is True:
-            is_applied, reason = self._vacancy_is_already_in_file(job["vacancy_id"])
+            is_applied, reason = self._job_description_is_already_met(job["vacancy_id"])
         else:
             is_applied, reason = self._is_already_applied_to_job_or_company(job)
         if is_applied:
@@ -617,29 +621,6 @@ class JobApplier:
             logger.error(f"Ошибка при загрузке списка данных из файла {filename}\n{tb_str}")
             raise Exception(f"Ошибка при загрузке данных из файла {filename}")
 
-    def _save_job_description(self, job_description: JobDescription) -> None:
-        """Сохранить данные о вакансии и сопроводительное письмо в файл"""
-        output_file = self._define_output_file("job_descriptions.txt")
-        logger.info("Сохраняем данные о вакансии и сопроводительное письмо в текстовый файл")
-        try:
-            with open(output_file, "a", encoding="utf-8") as f:
-                f.write(80 * "=" + "\n")
-                f.write(f"Компания: {job_description.company_name}\n")
-                f.write(f"Вакансия: {job_description.job_title}\n")
-                f.write(f"ID вакансии: {job_description.vacancy_id}\n")
-                f.write(f"Оценка вакансии: {job_description.job_score}\n")
-                f.write(f"Навыки: {', '.join(job_description.skills)}\n")
-                f.write(f"Ссылка: {job_description.link}\n")
-                f.write("Сопроводительное письмо:\n\n")
-                f.write(job_description.cover_letter + "\n\n")
-            logger.info("Новое сопроводительное письмо успешно сохранено в текстовый файл")
-        except Exception:
-            tb_str = traceback.format_exc()
-            logger.error(
-                f"Ошибка при сохранении сопроводительного письма в текстовый файл. \n{tb_str}"
-            )
-            raise Exception("Ошибка при сохранении сопроводительного письма в текстовый файл")
-
     def _is_blacklisted(self, company: str) -> bool:
         """Проверить, не находится ли компания в черном списке"""
         if company in self.job_blacklist:
@@ -673,13 +654,93 @@ class JobApplier:
                         return True, "Вакансия уже встречалась"
         return False, ""
 
-    def _vacancy_is_already_in_file(self, vacancy_id: str) -> Tuple[bool, str]:
-        """Проверить, не находится ли вакансия в файле с вакансиями"""
-        with open("job_descriptions.txt", "r", encoding="utf-8") as f:
-            for line in f:
-                if f"ID вакансии: {vacancy_id}" in line:
-                    return True, "Вакансия уже встречалась"
+    def _job_description_is_already_met(self, vacancy_id: str) -> Tuple[bool, str]:
+        """Проверить, не находится ли вакансия в списке уже просмотренных вакансий"""
+        for job in self.seen_job_descriptions:
+            if job["vacancy_id"] == vacancy_id:
+                return True, "Вакансия уже встречалась"
         return False, ""
+
+    def _load_seen_job_descriptions_from_file(self, filename: str) -> List[Dict[str, Any]]:
+        """Получить список уже просмотренных вакансий"""
+        seen_job_descriptions = []
+        try:
+            output_file = self._define_output_file(filename)
+            with open(output_file, "r", encoding="utf-8") as f:
+                content = f.read()
+
+            blocks = content.split(80 * "=")
+            for block in blocks:
+                if not block.strip():
+                    continue
+
+                lines = block.strip().split("\n")
+                job_data = {}
+                cover_letter_lines = []
+                is_cover_letter = False
+
+                for line in lines:
+                    if is_cover_letter:
+                        cover_letter_lines.append(line)
+                        continue
+
+                    if line.startswith("Компания:"):
+                        job_data["company_name"] = line.split(":", 1)[1].strip()
+                    elif line.startswith("Вакансия:"):
+                        job_data["job_title"] = line.split(":", 1)[1].strip()
+                    elif line.startswith("ID вакансии:"):
+                        job_data["vacancy_id"] = line.split(":", 1)[1].strip()
+                    elif line.startswith("Оценка вакансии:"):
+                        try:
+                            job_data["job_score"] = int(line.split(":", 1)[1].strip())
+                        except ValueError:
+                            job_data["job_score"] = 0
+                    elif line.startswith("Навыки:"):
+                        skills_str = line.split(":", 1)[1].strip()
+                        job_data["skills"] = [s.strip() for s in skills_str.split(",") if s.strip()]
+                    elif line.startswith("Ссылка:"):
+                        job_data["link"] = line.split(":", 1)[1].strip()
+                    elif line.startswith("Сопроводительное письмо:"):
+                        is_cover_letter = True
+
+                if cover_letter_lines:
+                    job_data["cover_letter"] = "\n".join(cover_letter_lines).strip()
+
+                if job_data:
+                    seen_job_descriptions.append(JobDescription(**job_data).model_dump())
+
+        except FileNotFoundError:
+            pass
+        except Exception:
+            tb_str = traceback.format_exc()
+            logger.error(f"Ошибка при загрузке списка просмотренных вакансий из файла\n{tb_str}")
+        return seen_job_descriptions
+
+    def _save_job_description(self, job_description: JobDescription) -> None:
+        """Сохранить данные о вакансии и сопроводительное письмо в файл.
+        Сохраняем в обратном порядке, чтобы последние вакансии были в начале файла"""
+        output_file = self._define_output_file("job_descriptions.txt")
+        logger.info("Сохраняем данные о вакансии и сопроводительное письмо в текстовый файл")
+        self.seen_job_descriptions = [job_description.model_dump()] + self.seen_job_descriptions
+        try:
+            with open(output_file, "w", encoding="utf-8") as f:
+                for job in self.seen_job_descriptions:
+                    f.write(80 * "=" + "\n")
+                    f.write(f"Компания: {job['company_name']}\n")
+                    f.write(f"Вакансия: {job['job_title']}\n")
+                    f.write(f"ID вакансии: {job['vacancy_id']}\n")
+                    f.write(f"Оценка вакансии: {job['job_score']}\n")
+                    f.write(f"Навыки: {', '.join(job['skills'])}\n")
+                    f.write(f"Ссылка: {job['link']}\n")
+                    f.write("Сопроводительное письмо:\n\n")
+                    f.write(job["cover_letter"] + "\n\n")
+            logger.info("Новое сопроводительное письмо успешно сохранено в текстовый файл")
+        except Exception:
+            tb_str = traceback.format_exc()
+            logger.error(
+                f"Ошибка при сохранении сопроводительного письма в текстовый файл. \n{tb_str}"
+            )
+            raise Exception("Ошибка при сохранении сопроводительного письма в текстовый файл")
 
     def _sanitize_text(self, text: str) -> str:
         """Очистить текст вопроса/ответа"""

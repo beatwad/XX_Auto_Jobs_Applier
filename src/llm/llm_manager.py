@@ -483,7 +483,6 @@ class GPTAnswerer:
 
     def __init__(self, llm_api_key: str, llm_proxy: str):
         self.job = None
-        self.last_job_score = None
         self.ai_adapter = AIAdapter(llm_api_key, llm_proxy)
         self.llm_cheap = LoggerChatModel(self.ai_adapter)
         self.chains = {
@@ -642,54 +641,52 @@ class GPTAnswerer:
         logger.info(f"Лучшие варианты ответа: {best_options}")
         return best_options
 
-    def job_is_interesting(self) -> Dict[str, Any] | None:
+    def job_is_interesting(self) -> Dict[str, Any]:
         """
         Спрашиваем у LLM, может ли быть интересна
         данная вакансия с учетом нашего резюме, навыков и интересов
         """
         logger.info("Проверяем, насколько вакансия может быть интересна.")
-        chain = self.chains["job_is_interesting"]
+        chain, parser = self.chains["job_is_interesting"]
         try:
             output = chain.invoke(
                 {
                     "resume": self.resume_readable,
                     "job_description": self.job_readable,
                     "search_parameters": self.search_parameters,
+                    "format_instructions": parser.get_format_instructions(),
                 }
             )
         except Exception:
             tb_str = traceback.format_exc()
             logger.error(f"Ошибка при вызове LLM\n{tb_str}")
-            self.last_job_score = None
-            return None
+            return {"score": 0, "reasoning": "Ошибка при вызове LLM"}
         logger.info(f"Оценка 'интересности' вакансии: {output.score}")
         logger.info(f"Объяснение оценки 'интересности': '{output.reasoning}'")
         return output.model_dump()
 
-    def resume_is_interesting(self) -> Tuple[str, str, str, str]:
+    def resume_is_interesting(self) -> Dict[str, Any]:
         """
         Спрашиваем у LLM, наскольо может быть интересно
         данное резюме с точки зрения его улучшения
         """
-        chain = self.chains["resume_is_interesting"]
+        chain, parser = self.chains["resume_is_interesting"]
         try:
             output = chain.invoke(
                 {
                     "resume": self.resume_readable,
+                    "format_instructions": parser.get_format_instructions(),
                 }
             )
         except Exception:
             tb_str = traceback.format_exc()
             logger.error(f"Ошибка при вызове LLM\n{tb_str}")
-            return None
-        # парсим ответ LLM
-        chain, parser = self.chains["resume_is_interesting"]
-        output = chain.invoke(
-            {
-                "resume": self.resume_readable,
-                "format_instructions": parser.get_format_instructions(),
+            return {
+                "demand_score": 0,
+                "resume_score": 0,
+                "solvency_score": 0,
+                "reasoning": "Ошибка при вызове LLM",
             }
-        )
         logger.info(f"Ответ LLM: '{output}'")
         return output.model_dump()
 
@@ -753,10 +750,11 @@ class GPTAnswerer:
         Парсим контакты из резюме и возвращаем их в виде словаря.
         """
         logger.info("Парсим контакты из резюме")
-        chain = self.chains["parse_contacts"]
+        chain, parser = self.chains["parse_contacts"]
         output = chain.invoke(
             {
                 "resume": resume_info,
+                "format_instructions": parser.get_format_instructions(),
             }
         )
         logger.info(f"Ответ LLM: '{output}'")
