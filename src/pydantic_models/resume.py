@@ -11,9 +11,10 @@ class PersonalInformation(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     first_name: str
-    last_name: str
-    email: Optional[str] = None
     middle_name: Optional[str] = None
+    last_name: str
+    birthday: Optional[str] = None
+    email: Optional[str] = None
     telegram: Optional[str] = None
     whatsapp: Optional[str] = None
     phone: Optional[str] = None

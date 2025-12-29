@@ -58,7 +58,7 @@ class PlaywrightJobManager:
         if not self.page:
             await self.initialize()
         logger.info("Checking login status...")
-        await asyncio.sleep(2)
+        await self.pause_async(2, 3)
         if not await self._is_logged_in():
             return await self._perform_login()
         return True
@@ -81,7 +81,7 @@ class PlaywrightJobManager:
         await self._select_email_credential_type_if_present()
 
         # Fill login (email) FIRST (HH can require it before switching to password form)
-        await asyncio.sleep(1)
+        await self.pause_async(1, 2)
         logger.info("Filling login")
         await safe_fill(
             self.page,
@@ -93,7 +93,7 @@ class PlaywrightJobManager:
         # Then open password form (button text: "Войти с паролем")
         logger.info("Opening password form")
         await safe_click(self.page, "//*[starts-with(@data-qa, 'expand-login-by')]")
-        await asyncio.sleep(1)
+        await self.pause_async(1, 2)
 
         # Fill password
         logger.info("Filling password")
@@ -103,11 +103,11 @@ class PlaywrightJobManager:
             self.password,
             wait_for_timeout=5000,
         )
-        await asyncio.sleep(2)
+        await self.pause_async(2, 3)
 
         # Click submit (button text: "Войти"). Avoid clicking generic submit too early ("Дальше")
         await safe_click(self.page, "//*[@data-qa='submit-button']", timeout=5000)
-        await asyncio.sleep(2)
+        await self.pause_async(2, 3)
 
         # Check for errors
         error_msg = self.page.locator("//*[@data-qa='account-login-error']")
@@ -186,7 +186,7 @@ class PlaywrightJobManager:
             )
 
         await safe_click(self.page, "//*[@data-qa='submit-button']", timeout=5000)
-        await asyncio.sleep(1)
+        await self.pause_async(1, 2)
 
     async def _select_email_credential_type_if_present(self) -> None:
         """
@@ -219,7 +219,7 @@ class PlaywrightJobManager:
                 "//*[self::label or self::div][.//*[contains(., 'Почта')]]",
                 timeout=5000,
             )
-        await asyncio.sleep(0.5)
+        await self.pause_async(0.5, 1)
 
     async def _handle_captcha(self, submit_selector: str):
         """Handle captcha if it appears."""
@@ -280,11 +280,11 @@ class PlaywrightJobManager:
                 await safe_click(self.page, submit_selector)
 
                 # Wait for reload/check
-                await asyncio.sleep(5)
+                await self.pause_async(5, 6)
                 if os.path.exists(img_path):
                     os.remove(img_path)
             else:
-                await asyncio.sleep(5)
+                await self.pause_async(5, 6)
 
     async def pause_async(self, low=0.5, high=1.0):
         """Async pause."""
@@ -364,7 +364,7 @@ class PlaywrightJobManager:
             await safe_click(
                 self.page, "xpath=//*[text()='Найти' or text()='Найти вакансии']", timeout=5000
             )
-        await asyncio.sleep(2)
+        await self.pause_async(2, 3)
 
     # -----------------------------
     # Advanced search helpers (UI)
@@ -419,7 +419,7 @@ class PlaywrightJobManager:
         best_idx = min(distances, key=lambda x: x[1])[0]
         try:
             await safe_click(self.page, suggestion_xpath, element_number=best_idx)
-            await asyncio.sleep(0.5)
+            await self.pause_async(0.5, 1)
             return True
         except Exception:
             return False
@@ -441,7 +441,7 @@ class PlaywrightJobManager:
             "//*[@data-qa='suggest-item-cell' or @data-qa='suggester__keywords-item']"
         )
         await self._click_best_suggestion(keywords, f"xpath={suggestion_xpath}")
-        await asyncio.sleep(0.5)
+        await self.pause_async(0.5, 1)
 
     async def _set_search_field(self) -> None:
         logger.debug("Задаем настройки области поиска")
@@ -473,7 +473,7 @@ class PlaywrightJobManager:
                     f"xpath=//*[self::label or self::span or self::div][contains(., '{text_map[key]}')]",
                     timeout=5000,
                 )
-            await asyncio.sleep(0.2)
+            await self.pause_async(0.5, 1)
 
     async def _set_words_to_exclude(self) -> None:
         logger.debug("Задаем слова для исключения")
@@ -484,7 +484,7 @@ class PlaywrightJobManager:
         await safe_fill(
             self.page, "[data-qa='vacancysearch__keywords-excluded-input']", words, timeout=10000
         )
-        await asyncio.sleep(0.5)
+        await self.pause_async(0.5, 1)
 
     async def _set_tree_selector_single(self, open_text: str, value: str) -> None:
         """
@@ -506,10 +506,10 @@ class PlaywrightJobManager:
         if not opened:
             return
 
-        await asyncio.sleep(0.5)
+        await self.pause_async(0.5, 1)
         search_input_xpath = "//*[@data-qa='tree-selector-search-input' or @data-qa='bloko-tree-selector-popup-search']"
         await safe_fill(self.page, f"xpath={search_input_xpath}", value, timeout=10000)
-        await asyncio.sleep(0.8)
+        await self.pause_async(1, 2)
 
         # Suggestions inside modal
         suggestion_xpath = (
@@ -528,13 +528,13 @@ class PlaywrightJobManager:
             )
             return
 
-        await asyncio.sleep(0.5)
+        await self.pause_async(0.5, 1)
         await safe_click(
             self.page,
             "xpath=//*[@data-qa='composite-selection-tree-selector-modal-submit' or @data-qa='bloko-tree-selector-popup-submit']",
             timeout=5000,
         )
-        await asyncio.sleep(0.5)
+        await self.pause_async(0.5, 1)
 
     async def _set_professional_role(self) -> None:
         logger.debug("Задаем профессиональную роль")
@@ -572,7 +572,7 @@ class PlaywrightJobManager:
             if not await safe_fill(self.page, input_selector, region, timeout=10000):
                 await safe_click(self.page, input_selector, timeout=5000)
                 await self.page.keyboard.type(region)
-            await asyncio.sleep(0.7)
+            await self.pause_async(0.7, 1)
             await self._click_best_suggestion(region, f"xpath={suggestion_xpath}")
 
     async def _set_districts(self) -> None:
@@ -591,7 +591,7 @@ class PlaywrightJobManager:
             if not district:
                 continue
             await safe_fill(self.page, input_selector, district, timeout=10000)
-            await asyncio.sleep(0.7)
+            await self.pause_async(0.7, 1)
             await self._click_best_suggestion(district, f"xpath={suggestion_xpath}")
 
     async def _set_salary_and_currency(self) -> None:
@@ -605,7 +605,7 @@ class PlaywrightJobManager:
             await safe_fill(
                 self.page, "[data-qa='advanced-search-salary']", salary_val, timeout=10000
             )
-            await asyncio.sleep(0.2)
+            await self.pause_async(0.5, 1)
 
         currency = self.search_params.get("currency") or {}
         currency_key = self._first_true_key(currency)
@@ -620,7 +620,7 @@ class PlaywrightJobManager:
             timeout=3000,
         )
         if clicked:
-            await asyncio.sleep(0.2)
+            await self.pause_async(0.5, 1)
             return
 
         # Fallback: some older versions use a <select> or different container
@@ -630,7 +630,7 @@ class PlaywrightJobManager:
         if await select_locator.count() > 0:
             try:
                 await select_locator.first.select_option(currency_key)
-                await asyncio.sleep(0.2)
+                await self.pause_async(0.5, 1)
                 return
             except Exception:
                 pass
@@ -653,7 +653,7 @@ class PlaywrightJobManager:
             "xpath=//label[.//input[@name='label' and @value='with_salary']]",
             timeout=3000,
         ):
-            await asyncio.sleep(0.2)
+            await self.pause_async(0.5, 1)
             return
 
         # Fallback: click by likely text (older versions)
@@ -668,7 +668,7 @@ class PlaywrightJobManager:
                 f"xpath=//*[self::label or self::span or self::div][contains(., '{t}')]",
                 timeout=2000,
             ):
-                await asyncio.sleep(0.2)
+                await self.pause_async(0.5, 1)
                 return
 
     async def _set_education(self) -> None:
@@ -716,7 +716,7 @@ class PlaywrightJobManager:
                     "[data-qa='advanced-search__accept_temporary-item']",
                     timeout=3000,
                 )
-                await asyncio.sleep(0.2)
+                await self.pause_async(0.5, 1)
                 continue
 
             if key == "INTERNSHIP":
@@ -725,7 +725,7 @@ class PlaywrightJobManager:
                     "xpath=//label[.//input[@name='label' and @value='internship']]",
                     timeout=3000,
                 )
-                await asyncio.sleep(0.2)
+                await self.pause_async(0.5, 1)
                 continue
 
             await safe_click(
@@ -733,7 +733,7 @@ class PlaywrightJobManager:
                 f"xpath=//label[.//input[@name='employment_form' and @value='{key}']]",
                 timeout=3000,
             )
-            await asyncio.sleep(0.2)
+            await self.pause_async(0.5, 1)
 
     async def _set_job_format(self) -> None:
         logger.debug("Задаем формат работы")
@@ -748,7 +748,7 @@ class PlaywrightJobManager:
                 f"[data-qa='advanced-search__work_format-item-label_{key}']",
                 timeout=1500,
             ):
-                await asyncio.sleep(0.2)
+                await self.pause_async(0.5, 1)
                 continue
 
     async def _set_vacancy_label(self) -> None:
@@ -810,7 +810,7 @@ class PlaywrightJobManager:
                     self.search_page_url = new_url
                     logger.info(f"Переходим на страницу {page_num}: {new_url}")
                     await self.page.goto(new_url)
-                    await asyncio.sleep(2)
+                    await self.pause_async(2, 3)
         except Exception as e:
             logger.warning(f"Error handling pagination: {e}")
 
@@ -955,7 +955,7 @@ class PlaywrightJobManager:
             await self.page.goto(vacancy_url)
             logger.info(f"Переход на страницу: {vacancy_url}")
 
-        await self.pause_async()
+        await self.pause_async(1, 2)
 
         # Click Apply
         apply_btn_top_selector = '[data-qa="vacancy-response-link-top"]'
@@ -970,7 +970,7 @@ class PlaywrightJobManager:
             return "Error", "Apply button not found"
 
         # Wait for modal or navigation
-        await asyncio.sleep(2)
+        await self.pause_async(2, 3)
         await self._handle_interfering_messages()
 
         # Handle Questions
@@ -1001,7 +1001,7 @@ class PlaywrightJobManager:
             if await safe_click(
                 self.page, '[data-qa="vacancy-response-letter-submit"]', timeout=5000
             ):
-                await asyncio.sleep(2)
+                await self.pause_async(2, 3)
                 return "Success", "Cover letter sent"
 
         # Handle Cover Letter
@@ -1162,7 +1162,7 @@ class PlaywrightJobManager:
         if not clicked:
             await self.page.goto("https://hh.ru")
             logger.info("Переход на страницу: https://hh.ru")
-            await asyncio.sleep(1)
+            await self.pause_async(1, 2)
             await safe_click(self.page, menu_selector, timeout=5000)
         # Wait until resume cards are visible on the resumes/profile page
         try:
@@ -1229,6 +1229,7 @@ class PlaywrightJobManager:
         resume["personal_information"] = {}
         resume["personal_information"]["first_name"] = await self._get_first_name()
         resume["personal_information"]["last_name"] = await self._get_last_name()
+        resume["personal_information"]["birthday"] = await self._get_birthday()
         resume["personal_information"]["telegram"] = await self._get_telegram()
         resume["personal_information"]["whatsapp"] = await self._get_whatsapp()
         resume["area"] = await self._get_area()
@@ -1241,8 +1242,12 @@ class PlaywrightJobManager:
         await safe_click(self.page, "[data-qa='profile-common-card-edit']", timeout=5000)
         await self.pause_async(2, 3)
         middle_name = await self._get_middle_name()
+        birthday = await self._get_birthday()
+
         if middle_name:
             resume["personal_information"]["middle_name"] = middle_name
+        if birthday:
+            resume["personal_information"]["birthday"] = birthday
         (
             sex,
             citizenship,
@@ -1291,7 +1296,7 @@ class PlaywrightJobManager:
         """Raise resume in search."""
         raise_btn_xpath = "xpath=//*[contains(text(), 'Поднять в') and contains(text(), 'поиске')]"
         if await safe_click(self.page, raise_btn_xpath):
-            await asyncio.sleep(2)
+            await self.pause_async(2, 3)
             logger.info("Резюме успешно поднято")
         else:
             logger.info("Резюме пока нельзя поднять")
@@ -1324,6 +1329,13 @@ class PlaywrightJobManager:
             middle_name = await middle_name.first.get_attribute("value")
             middle_name = sanitize_text(middle_name, lowercase=False)
         return middle_name
+
+    async def _get_birthday(self) -> str:
+        birthday = self.page.locator('[data-qa="profile-common-edit-birthday"]')
+        if await birthday.count() > 0:
+            birthday = await birthday.first.get_attribute("value")
+            birthday = sanitize_text(birthday)
+        return birthday
 
     async def _get_sex_citizenship_and_legal_auth(self) -> Tuple[str, str, str]:
         select_activators = await self.page.locator('[data-qa="magritte-select-activator"]').all()
