@@ -153,7 +153,7 @@ class ResumeScraper:
                         value,
                         input_,
                     )
-            elif key in ["last_name_2"]:
+            elif key in ["first_name_2", "first_name_3", "last_name_2", "telegram_2", "telegram_3"]:
                 continue
             else:
                 if not self.resume_info["personal_information"].get(key):
@@ -187,9 +187,11 @@ class ResumeScraper:
             else:
                 if "github" in value_to_replace:
                     continue
-                # LLM периодически галлюцинирует и выдает неправильную фамилию
+                # LLM периодически галлюцинирует и выдает неправильное имя или фамилию или telegram
                 # этот код добавлен с целью исправления данного бага
-                if key in ["last_name_2"]:
+                if key in ["first_name_2", "first_name_3"]:
+                    key_ = "first_name"
+                elif key in ["last_name_2"]:
                     key_ = "last_name"
                 elif key in ["telegram_2", "telegram_3"]:
                     key_ = "telegram"

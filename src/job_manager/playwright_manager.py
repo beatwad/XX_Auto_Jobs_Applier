@@ -100,12 +100,12 @@ class PlaywrightJobManager:
             self.page,
             "//*[@data-qa='login-input-password' or @data-qa='applicant-login-input-password']",
             self.password,
-            wait_for_timeout=5000,
+            wait_for_timeout=10000,
         )
         await self.pause_async(2, 3)
 
         # Click submit (button text: "Войти"). Avoid clicking generic submit too early ("Дальше")
-        await safe_click(self.page, "//*[@data-qa='submit-button']", timeout=5000)
+        await safe_click(self.page, "//*[@data-qa='submit-button']", timeout=10000)
         await self.pause_async(2, 3)
 
         # Check for errors
@@ -127,7 +127,7 @@ class PlaywrightJobManager:
         """Проверяет, выполнен ли вход."""
         logger.info("Navigating to login page...")
         try:
-            await self.page.goto("https://hh.ru/employer", timeout=10000)
+            await self.page.goto("https://hh.ru/employer")
             logger.info("Переход на страницу: https://hh.ru/employer")
         except Exception as e:
             logger.warning(f"Failed to navigate to login page: {e}")
@@ -175,16 +175,16 @@ class PlaywrightJobManager:
         clicked = await safe_click(
             self.page,
             "//*[contains(@data-qa,'account-type-card-APPLICANT')]/ancestor::label[1]",
-            timeout=5000,
+            timeout=10000,
         )
         if not clicked:
             await safe_click(
                 self.page,
                 "//*[.//span[@data-qa='cell-text-content' and contains(., 'Я') and contains(., 'ищу работу')]]",
-                timeout=5000,
+                timeout=10000,
             )
 
-        await safe_click(self.page, "//*[@data-qa='submit-button']", timeout=5000)
+        await safe_click(self.page, "//*[@data-qa='submit-button']", timeout=10000)
         await self.pause_async(1, 2)
 
     async def _select_email_credential_type_if_present(self) -> None:
@@ -201,9 +201,7 @@ class PlaywrightJobManager:
             return
 
         # In HH markup, selected state can appear as data-qa="credential-type-PHONE checked"
-        phone_checked = self.page.locator(
-            "[data-qa*='credential-type-PHONE'] and [data-qa*='checked']"
-        )
+        phone_checked = self.page.locator("[data-qa*='credential-type-PHONE'][data-qa*='checked']")
         if (await phone_checked.count()) == 0:
             return
 
@@ -211,13 +209,13 @@ class PlaywrightJobManager:
         clicked = await safe_click(
             self.page,
             "//*[@data-qa='credential-type-EMAIL']/ancestor::label[1]",
-            timeout=5000,
+            timeout=10000,
         )
         if not clicked:
             await safe_click(
                 self.page,
                 "//*[self::label or self::div][.//*[contains(., 'Почта')]]",
-                timeout=5000,
+                timeout=10000,
             )
         await self.pause_async(0.5, 1)
 
@@ -314,7 +312,7 @@ class PlaywrightJobManager:
             "[aria-label='Расширенный поиск']",
             "xpath=//*[contains(., 'Расширенный поиск')]",
         ):
-            if await safe_click(self.page, selector, timeout=5000):
+            if await safe_click(self.page, selector, timeout=10000):
                 opened = True
                 break
 
@@ -363,7 +361,7 @@ class PlaywrightJobManager:
             self.page, "[data-qa='advanced-search-submit-button']", timeout=10000
         ):
             await safe_click(
-                self.page, "xpath=//*[text()='Найти' or text()='Найти вакансии']", timeout=5000
+                self.page, "xpath=//*[text()='Найти' or text()='Найти вакансии']", timeout=10000
             )
         await self.pause_async(2, 3)
 
@@ -404,7 +402,7 @@ class PlaywrightJobManager:
             return False
         suggestions = self.page.locator(suggestion_xpath)
         try:
-            await suggestions.first.wait_for(state="visible", timeout=5000)
+            await suggestions.first.wait_for(state="visible", timeout=10000)
         except Exception:
             return False
 
@@ -466,7 +464,7 @@ class PlaywrightJobManager:
             clicked = await safe_click(
                 self.page,
                 f"xpath=//label[.//input[@name='search_field' and @value='{key}']]",
-                timeout=5000,
+                timeout=10000,
             )
             if not clicked:
                 # Old selenium-era fallback: click by visible text
@@ -478,7 +476,7 @@ class PlaywrightJobManager:
                 await safe_click(
                     self.page,
                     f"xpath=//*[self::label or self::span or self::div][contains(., '{text_map[key]}')]",
-                    timeout=5000,
+                    timeout=10000,
                 )
             await self.pause_async(0.5, 1)
 
@@ -509,7 +507,7 @@ class PlaywrightJobManager:
             f"xpath=//*[normalize-space()='{open_text}']",
             f"xpath=//*[contains(., '{open_text}')]",
         ):
-            if await safe_click(self.page, selector, timeout=5000):
+            if await safe_click(self.page, selector, timeout=10000):
                 opened = True
                 break
         if not opened:
@@ -541,7 +539,7 @@ class PlaywrightJobManager:
         await safe_click(
             self.page,
             "xpath=//*[@data-qa='composite-selection-tree-selector-modal-submit' or @data-qa='bloko-tree-selector-popup-submit']",
-            timeout=5000,
+            timeout=10000,
         )
         await self.pause_async(0.5, 1)
 
@@ -582,7 +580,7 @@ class PlaywrightJobManager:
             if not region:
                 continue
             if not await safe_fill(self.page, input_selector, region, timeout=10000):
-                await safe_click(self.page, input_selector, timeout=5000)
+                await safe_click(self.page, input_selector, timeout=10000)
                 await self.page.keyboard.type(region)
             await self.pause_async(0.7, 1)
             await self._click_best_suggestion(region, f"xpath={suggestion_xpath}")
@@ -1040,7 +1038,7 @@ class PlaywrightJobManager:
             await self.pause_async(1, 2)
             # Submit the cover letter
             if await safe_click(
-                self.page, '[data-qa="vacancy-response-letter-submit"]', timeout=5000
+                self.page, '[data-qa="vacancy-response-letter-submit"]', timeout=10000
             ):
                 await self.pause_async(2, 3)
                 return "Success", "Cover letter sent"
@@ -1204,12 +1202,12 @@ class PlaywrightJobManager:
         await self.ensure_logged_in()
         # Open "Резюме и профиль" page from main menu
         menu_selector = '[data-qa="mainmenu_profileAndResumes"]'
-        clicked = await safe_click(self.page, menu_selector, timeout=5000)
+        clicked = await safe_click(self.page, menu_selector, timeout=10000)
         if not clicked:
             await self.page.goto("https://hh.ru")
             logger.info("Переход на страницу: https://hh.ru")
             await self.pause_async(1, 2)
-            await safe_click(self.page, menu_selector, timeout=5000)
+            await safe_click(self.page, menu_selector, timeout=10000)
         # Wait until resume cards are visible on the resumes/profile page
         try:
             await self.page.wait_for_selector('[data-qa="resume"]', timeout=15000)
@@ -1285,7 +1283,7 @@ class PlaywrightJobManager:
             resume["personal_information"]["linkedin"] = linkedin
         if habr_career:
             resume["personal_information"]["habr_career"] = habr_career
-        await safe_click(self.page, "[data-qa='profile-common-card-edit']", timeout=5000)
+        await safe_click(self.page, "[data-qa='profile-common-card-edit']", timeout=10000)
         await self.pause_async(2, 3)
         middle_name = await self._get_middle_name()
         birthday = await self._get_birthday()

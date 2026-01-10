@@ -16,6 +16,7 @@ from src.utils.utils import load_yaml_file
 
 
 # TODO: check the full job application pipeline
+# TODO: translate all comments and logs to Russian
 # TODO: actualize tests
 
 

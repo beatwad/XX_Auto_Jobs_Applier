@@ -1,6 +1,8 @@
 # Личные данные-пустышки для анонимизации (мужской пол)
 DUMMY_PERSONAL_INFO_MALE = {
     "first_name": "Аристаний",
+    "first_name_2": "Ари́станий",
+    "first_name_3": "Ариста́ний",
     "middle_name": "Астромерович",
     "last_name": "Звяегольцев",
     "last_name_2": "Звягольцев",
@@ -20,6 +22,8 @@ DUMMY_PERSONAL_INFO_MALE = {
 # Личные данные-пустышки для анонимизации (женский пол)
 DUMMY_PERSONAL_INFO_FEMALE = {
     "first_name": "Аристания",
+    "first_name_2": "Ари́стания",
+    "first_name_3": "Ариста́ния",
     "middle_name": "Астромеровна",
     "last_name": "Звяегольцева",
     "last_name_2": "Звягольцева",
