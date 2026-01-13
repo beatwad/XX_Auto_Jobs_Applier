@@ -966,27 +966,30 @@ class PlaywrightJobManager:
             "skills": skills,
         }
 
-    async def _handle_interfering_messages(self) -> bool:
+    async def _handle_interfering_messages(self) -> None:
         """Обрабатывает мешающие сообщения (куки, уведомления, попапы)."""
-        message_was_processed = False
+        message_was_processed = True
 
-        # Cookies
-        cookies_btn = self.page.locator("xpath=//*[text()='Понятно']")
-        if await cookies_btn.count() > 0:
-            await cookies_btn.click()
-            message_was_processed = True
-        # Notifications
-        close_btn = self.page.locator('[data-qa="notification-close-button"]')
-        if await close_btn.count() > 0:
-            await close_btn.click()
-            message_was_processed = True
-        # Additional data collector popup
-        save_btn = self.page.locator('[data-qa="additional-data-collector__popup-save"]')
-        if await save_btn.count() > 0:
-            await save_btn.click()
-            message_was_processed = True
+        while message_was_processed:
+            await self.pause_async(2, 3)
 
-        return message_was_processed
+            # Cookies
+            cookies_btn = self.page.locator("xpath=//*[text()='Понятно']")
+            if await cookies_btn.count() > 0:
+                await cookies_btn.click()
+                break
+            # Notifications
+            close_btn = self.page.locator('[data-qa="notification-close-button"]')
+            if await close_btn.count() > 0:
+                await close_btn.click()
+                break
+            # Additional data collector popup
+            save_btn = self.page.locator('[data-qa="additional-data-collector__popup-save"]')
+            if await save_btn.count() > 0:
+                await save_btn.click()
+                break
+
+            message_was_processed = False
 
     async def apply_to_vacancy(
         self, vacancy_url: str, cover_letter: str, gpt_answerer: Any, resume_component: Any
@@ -1014,10 +1017,7 @@ class PlaywrightJobManager:
             return "Error", "Apply button not found"
 
         # Wait for modal or navigation
-        message_was_processed = True
-        while message_was_processed:
-            await self.pause_async(2, 3)
-            message_was_processed = await self._handle_interfering_messages()
+        await self._handle_interfering_messages()
 
         # Handle Questions
         questions_selector = '[data-qa="task-body"]'

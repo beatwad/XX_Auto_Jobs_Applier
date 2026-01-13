@@ -7,9 +7,13 @@ from typing import Any, Dict, List, Optional
 
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
-from src.app_config import HEADLESS_MODE
 from src.constants import BROWSER_STORAGE_STATE
 from src.logger_config import logger
+from src.utils.utils import load_app_config
+
+# Load config
+config = load_app_config()
+HEADLESS_MODE = config.get("HEADLESS_MODE", False)
 
 
 def ensure_playwright_profile() -> str:

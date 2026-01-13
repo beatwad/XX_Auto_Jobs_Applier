@@ -8,13 +8,6 @@ from typing import Any, Dict, List, Tuple
 
 import yaml
 
-from src.app_config import (
-    SEARCH_MODE,
-    MINIMUM_WAIT_TIME_SEC,
-    MONKEY_MODE,
-    SKILL_STAT_MODE,
-    JOB_IS_INTERESTING_THRESH,
-)
 from src.constants import LAST_RUN_FILE, SEARCH_CONFIG_FILE
 from src.job_manager.playwright_manager import PlaywrightJobManager
 from src.logger_config import logger
@@ -25,7 +18,16 @@ from src.utils.utils import (
     save_yaml_file,
     sleep,
 )
+from src.utils.utils import load_app_config
 from src.views.job import Job, JobDescription
+
+# Load config
+config = load_app_config()
+SEARCH_MODE = config.get("SEARCH_MODE", False)
+MINIMUM_WAIT_TIME_SEC = config.get("MINIMUM_WAIT_TIME_SEC", 10)
+MONKEY_MODE = config.get("MONKEY_MODE", False)
+SKILL_STAT_MODE = config.get("SKILL_STAT_MODE", False)
+JOB_IS_INTERESTING_THRESH = config.get("JOB_IS_INTERESTING_THRESH", 70)
 
 search_config = load_yaml_file(SEARCH_CONFIG_FILE)
 FIXED_COVER_LETTER = search_config.get("cover_letter")

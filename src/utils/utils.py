@@ -1,4 +1,5 @@
 import os
+import sys
 import random
 import re
 import time
@@ -12,13 +13,13 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 
 from src.logger_config import logger
+from src.constants import APP_CONFIG_FILE
+
+chromeProfilePath = os.path.join(os.getcwd(), "chrome_profile", "hh_profile")
 
 
 class ConfigError(Exception):
     pass
-
-
-chromeProfilePath = os.path.join(os.getcwd(), "chrome_profile", "hh_profile")
 
 
 def load_yaml_file(yaml_path: Path) -> dict:
@@ -29,7 +30,21 @@ def load_yaml_file(yaml_path: Path) -> dict:
     except yaml.YAMLError as exc:
         raise yaml.YAMLError(f"Ошибка в чтении файла {yaml_path}: {exc}")
     except FileNotFoundError:
+        # We can't log here because of circular dependency with logger
+        # raise ConfigError(f"Файл не найден: {yaml_path}")
+        # Or just raise it and let caller handle
         raise ConfigError(f"Файл не найден: {yaml_path}")
+
+
+def load_app_config() -> dict:
+    """Загрузить конфигурацию приложения из YAML файла"""
+    try:
+        config = load_yaml_file(APP_CONFIG_FILE)
+        return config or {}
+    except Exception as e:
+        # Fallback logging to stderr since we can't use logger here
+        print(f"Ошибка при загрузке конфигурации приложения: {e}", file=sys.stderr)
+        return {}
 
 
 def save_yaml_file(yaml_path: Path, data: dict, sort_keys: bool = True) -> None:

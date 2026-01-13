@@ -21,13 +21,19 @@ from langchain_google_genai import ChatGoogleGenerativeAI, HarmBlockThreshold, H
 from Levenshtein import distance
 
 import src.llm.prompts as prompts
-from src.app_config import LLM_MODEL, LLM_MODEL_TYPE, TEMPERATURE
+from src.utils.utils import load_app_config
 from src.views.llm import ContactInfo, JobIsInteresting, ResumeIsInteresting, BaseModel
 from src.constants import PRICE_DICT
 from src.logger_config import logger
 from src.utils.json_to_readable import transform_search_config_data, transform_vacancy_data
 
 load_dotenv()
+
+# Load config
+config = load_app_config()
+LLM_MODEL = config.get("LLM_MODEL", "gpt-5-nano")
+LLM_MODEL_TYPE = config.get("LLM_MODEL_TYPE", "openai")
+TEMPERATURE = config.get("TEMPERATURE", 0.4)
 
 
 class AIModel(ABC):

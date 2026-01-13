@@ -42,6 +42,7 @@ DUMMY_PERSONAL_INFO_FEMALE = {
 
 # Пути к файлам логов и настроек
 SECRETS_FILE = "data_folder/secrets/secrets.yaml"
+APP_CONFIG_FILE = "data_folder/app_config/app_config.yaml"
 SEARCH_CONFIG_FILE = "data_folder/search_config/search_config.yaml"
 SEARCH_CONFIG_FILE_TMP = "data_folder/output/search_config_tmp.yaml"
 LAST_RUN_FILE = "data_folder/output/last_run.yaml"
@@ -58,9 +59,21 @@ PRICE_DICT = {
         "price_per_input_token": 1.5e-7,
         "price_per_output_token": 6e-7,
     },
+    "gpt-5-nano": {
+        "price_per_input_token": 5e-8,
+        "price_per_output_token": 4e-7,
+    },
+    "gpt-5-mini": {
+        "price_per_input_token": 2.5e-7,
+        "price_per_output_token": 2e-6,
+    },
+    "gpt-5": {
+        "price_per_input_token": 1.25e-6,
+        "price_per_output_token": 1e-5,
+    },
     "gemini-2.0-flash": {
         "price_per_input_token": 1e-7,
-        "price_per_output_token": 4e-7,
+        "price_per_output_token": 2e-7,
     },
     "GigaChat": {  # цены рассчитаны из учета курс 100 руб за $
         "price_per_input_token": 2e-6,
