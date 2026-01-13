@@ -118,10 +118,12 @@ class PlaywrightJobManager:
         # Verify login success
         if await self._is_logged_in():
             logger.info("Login successful.")
+            # Save browser session after successful login
+            await save_browser_session(self.context)
             return True
-
-        logger.warning("Login verification failed.")
-        return False
+        else:
+            logger.warning("Login verification failed.")
+            return False
 
     async def _is_logged_in(self) -> bool:
         """Проверяет, выполнен ли вход."""
@@ -355,8 +357,9 @@ class PlaywrightJobManager:
         await self._set_order_by()
         await self._set_period()
         await self._set_show()
-        # 3) Start search
+        # 3) Handle interfering messages
         await self._handle_interfering_messages()
+        # 4) Start search
         if not await safe_click(
             self.page, "[data-qa='advanced-search-submit-button']", timeout=10000
         ):
@@ -963,22 +966,27 @@ class PlaywrightJobManager:
             "skills": skills,
         }
 
-    async def _handle_interfering_messages(self):
+    async def _handle_interfering_messages(self) -> bool:
         """Обрабатывает мешающие сообщения (куки, уведомления, попапы)."""
+        message_was_processed = False
+
         # Cookies
         cookies_btn = self.page.locator("xpath=//*[text()='Понятно']")
         if await cookies_btn.count() > 0:
             await cookies_btn.click()
-
+            message_was_processed = True
         # Notifications
         close_btn = self.page.locator('[data-qa="notification-close-button"]')
         if await close_btn.count() > 0:
             await close_btn.click()
-
+            message_was_processed = True
         # Additional data collector popup
         save_btn = self.page.locator('[data-qa="additional-data-collector__popup-save"]')
         if await save_btn.count() > 0:
             await save_btn.click()
+            message_was_processed = True
+
+        return message_was_processed
 
     async def apply_to_vacancy(
         self, vacancy_url: str, cover_letter: str, gpt_answerer: Any, resume_component: Any
@@ -1006,8 +1014,10 @@ class PlaywrightJobManager:
             return "Error", "Apply button not found"
 
         # Wait for modal or navigation
-        await self.pause_async(2, 3)
-        await self._handle_interfering_messages()
+        message_was_processed = True
+        while message_was_processed:
+            await self.pause_async(2, 3)
+            message_was_processed = await self._handle_interfering_messages()
 
         # Handle Questions
         questions_selector = '[data-qa="task-body"]'
@@ -1075,7 +1085,6 @@ class PlaywrightJobManager:
         if await submit_btn.count() > 0:
             await safe_click(self.page, submit_btn)
             await self.pause_async(3, 4)
-            # Check for success?
             return "Success", ""
 
         return "Error", "Submit button not found"

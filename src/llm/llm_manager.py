@@ -57,7 +57,9 @@ class OpenAIModel(AIModel):
                     model_name=self.model_name,
                     openai_api_key=self.openai_api_key,
                     openai_proxy=proxy,
-                    temperature=TEMPERATURE,
+                    temperature=1
+                    if "o1" in self.model_name or "gpt-5" in self.model_name
+                    else TEMPERATURE,
                     presence_penalty=0,
                     frequency_penalty=0,
                     timeout=60,
