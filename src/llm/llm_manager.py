@@ -21,7 +21,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI, HarmBlockThreshold, H
 from Levenshtein import distance
 
 import src.llm.prompts as prompts
-from src.utils.utils import load_app_config
+from src.utils.utils import load_app_config, load_yaml_file
 from src.views.llm import ContactInfo, JobIsInteresting, ResumeIsInteresting, BaseModel
 from src.constants import PRICE_DICT
 from src.logger_config import logger
@@ -59,10 +59,11 @@ class OpenAIModel(AIModel):
 
         for proxy in llm_proxies:
             try:
+                http_client = httpx.Client(proxy=proxy)
                 model = ChatOpenAI(
                     model_name=self.model_name,
                     openai_api_key=self.openai_api_key,
-                    openai_proxy=proxy,
+                    http_client=http_client,
                     temperature=1
                     if "o1" in self.model_name or "gpt-5" in self.model_name
                     else TEMPERATURE,
@@ -136,12 +137,12 @@ class GeminiModel(AIModel):
 
 # class ClaudeModel(AIModel):
 #     """Получить доступ к модели Claude"""
-
+#
 #     def __init__(self, api_key: str, llm_model: str) -> None:
 #         from langchain_anthropic import ChatAnthropic
-
+#
 #         self.model = ChatAnthropic(model=llm_model, api_key=api_key, temperature=TEMPERATURE)
-
+#
 #     def invoke(self, prompt: str) -> BaseMessage:
 #         response = self.model.invoke(prompt)
 #         logger.debug("Успешно получен доступ к модели через Claude API")
@@ -150,16 +151,16 @@ class GeminiModel(AIModel):
 
 # class OllamaModel(AIModel):
 #     """Получить доступ к модели Ollama"""
-
+#
 #     def __init__(self, llm_model: str, llm_api_url: str) -> None:
 #         from langchain_ollama import ChatOllama
-
+#
 #         if len(llm_api_url) > 0:
 #             logger.debug(f"Используем Ollama с API URL: {llm_api_url}")
 #             self.model = ChatOllama(model=llm_model, base_url=llm_api_url)
 #         else:
 #             self.model = ChatOllama(model=llm_model)
-
+#
 #     def invoke(self, prompt: str) -> BaseMessage:
 #         response = self.model.invoke(prompt)
 #         logger.debug("Успешно получен доступ к модели через Ollama API")
@@ -167,15 +168,15 @@ class GeminiModel(AIModel):
 
 # class HuggingFaceModel(AIModel):
 #     """Получить доступ к модели Hugging Face"""
-
+#
 #     def __init__(self, api_key: str, llm_model: str) -> None:
 #         from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
-
+#
 #         self.model = HuggingFaceEndpoint(
 #             repo_id=llm_model, huggingfacehub_api_token=api_key, temperature=TEMPERATURE
 #         )
 #         self.chatmodel = ChatHuggingFace(llm=self.model)
-
+#
 #     def invoke(self, prompt: str) -> BaseMessage:
 #         response = self.chatmodel.invoke(prompt)
 #         logger.debug("Успешно получен доступ к модели через Hugging Face API")
@@ -184,10 +185,10 @@ class GeminiModel(AIModel):
 
 # class GigaChatModel(AIModel):
 #     """Получить доступ к модели GigaChat"""
-
+#
 #     def __init__(self, api_key: str, llm_model: str) -> None:
 #         from langchain_gigachat import GigaChat
-
+#
 #         if "GIGACHAT_CREDENTIALS" not in os.environ:
 #             os.environ["GIGACHAT_CREDENTIALS"] = api_key
 #         self.model = GigaChat(
@@ -196,7 +197,7 @@ class GeminiModel(AIModel):
 #             temperature=TEMPERATURE,
 #             model=llm_model,
 #         )
-
+#
 #     def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
 #         logger.info("Получен доступ к модели через GigaChat API")
 #         prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
@@ -767,3 +768,32 @@ class GPTAnswerer:
         )
         logger.info(f"Ответ LLM: '{output}'")
         return output.model_dump()
+
+
+if __name__ == "__main__":
+    from langchain_core.prompts import ChatPromptTemplate
+    from src.constants import SECRETS_FILE
+
+    secrets = load_yaml_file(SECRETS_FILE)
+    llm_api_key = secrets["llm_api_key"]
+    llm_proxy = secrets["llm_proxy"]
+
+    try:
+        openai_model = OpenAIModel(api_key=llm_api_key, llm_model=LLM_MODEL, llm_proxy=llm_proxy)
+
+        # Create a simple test prompt
+        template = ChatPromptTemplate.from_messages(
+            [("user", "Hello! Respond with 'Test passed' if you receive this.")]
+        )
+
+        # Invoke generates a PromptValue
+        prompt_value = template.invoke({})
+
+        print("Invoking OpenAIModel...")
+        response = openai_model.invoke(prompt_value)
+
+        print(f"Response content: {response.content}")
+
+    except Exception as e:
+        print(f"Test failed with error: {e}")
+        traceback.print_exc()

@@ -5,11 +5,8 @@ from loguru import logger
 
 from src.constants import LOGS_DIR
 from src.telegram.telegram_error_handler import AsyncTelegramSink
-from src.utils.utils import load_app_config
 
-# Load config
-config = load_app_config()
-MINIMUM_LOG_LEVEL = config.get("MINIMUM_LOG_LEVEL", "DEBUG")
+MINIMUM_LOG_LEVEL = "DEBUG"
 
 logger.remove()
 
