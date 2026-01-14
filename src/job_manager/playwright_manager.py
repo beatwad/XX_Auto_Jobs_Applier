@@ -1219,7 +1219,9 @@ class PlaywrightJobManager:
             await safe_click(self.page, menu_selector, timeout=10000)
         # Wait until resume cards are visible on the resumes/profile page
         try:
-            await self.page.wait_for_selector('[data-qa="resume"]', timeout=15000)
+            await self.page.wait_for_selector(
+                '[data-qa="resume"], [data-qa="resume resume-highlighted"]', timeout=15000
+            )
         except Exception:
             logger.warning("Resume list not found after opening 'Резюме и профиль' page.")
             return {"items": []}
@@ -1238,7 +1240,9 @@ class PlaywrightJobManager:
         resumes: List[Dict[str, Any]] = []
         seen_ids: set[str] = set()
 
-        cards = await self.page.locator('[data-qa="resume"]').all()
+        cards = await self.page.locator(
+            '[data-qa="resume"], [data-qa="resume resume-highlighted"]'
+        ).all()
         for card in cards:
             title = (await card.get_attribute("data-qa-title")) or ""
             title = title.strip()

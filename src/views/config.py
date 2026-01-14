@@ -15,10 +15,10 @@ class Currency(BaseModel):
     USD: bool = False
 
     @model_validator(mode="after")
-    def validate_currency(cls, values):
-        if sum(values.__dict__.values()) > 1:
+    def validate_currency(self):
+        if sum(self.model_dump().values()) > 1:
             raise ValueError("Только одно значение настроек currency может быть True")
-        return values
+        return self
 
 
 class Education(BaseModel):
@@ -35,10 +35,10 @@ class Experience(BaseModel):
     moreThan6: bool = False
 
     @model_validator(mode="after")
-    def validate_experience(cls, values):
-        if sum(values.__dict__.values()) > 1:
+    def validate_experience(self):
+        if sum(self.model_dump().values()) > 1:
             raise ValueError("Только одно значение настроек experience может быть True")
-        return values
+        return self
 
 
 class Employment(BaseModel):
