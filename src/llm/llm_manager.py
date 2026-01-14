@@ -59,7 +59,10 @@ class OpenAIModel(AIModel):
 
         for proxy in llm_proxies:
             try:
-                http_client = httpx.Client(proxy=proxy)
+                if proxy:
+                    http_client = httpx.Client(proxy=proxy)
+                else:
+                    http_client = None
                 model = ChatOpenAI(
                     model_name=self.model_name,
                     openai_api_key=self.openai_api_key,
