@@ -28,6 +28,7 @@ share/python-wheels/
 MANIFEST
 chrome_profile/*
 data_folder/output/*
+data_folder/app_config/app_config.yaml
 data_folder/browser_session/*
 data_folder/secrets/secrets.yaml
 data_folder/search_config/search_config.yaml
