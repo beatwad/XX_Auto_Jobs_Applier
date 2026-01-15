@@ -1352,7 +1352,7 @@ class PlaywrightJobManager:
         user_profile_url = "https://hh.ru/profile/me"
         await self.page.goto(user_profile_url)
         logger.info(f"Переход на страницу: {user_profile_url}")
-        # await self.pause_async(3, 4)
+        await self.pause_async(3, 4)
 
         resume["personal_information"] = {}
         resume["personal_information"]["first_name"] = await self._get_first_name()
@@ -1367,7 +1367,13 @@ class PlaywrightJobManager:
             resume["personal_information"]["linkedin"] = linkedin
         if habr_career:
             resume["personal_information"]["habr_career"] = habr_career
-        await safe_click(self.page, "[data-qa='profile-common-card-edit']", timeout=10000)
+        await safe_click(
+            self.page,
+            "xpath=//*[@data-qa='profile-common-card']//*["
+            "@data-qa='link' and .//*[@data-qa='link-text' and normalize-space()='Редактировать']"
+            "]",
+            timeout=10000,
+        )
         await self.pause_async(2, 3)
         middle_name = await self._get_middle_name()
         birthday = await self._get_birthday()
