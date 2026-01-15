@@ -1016,6 +1016,10 @@ class PlaywrightJobManager:
             # Check if already applied or other state
             return "Error", "Apply button not found"
 
+        await self.pause_async(1, 2)
+
+        await self._select_resume(resume_component)
+
         # Wait for modal or navigation
         await self._handle_interfering_messages()
 
@@ -1088,6 +1092,73 @@ class PlaywrightJobManager:
             return "Success", ""
 
         return "Error", "Submit button not found"
+
+    async def _select_resume(self, resume_component: Any) -> None:
+        """Выбирает резюме из списка."""
+        if not self.page or not resume_component:
+            return
+
+        target_title = (getattr(resume_component, "job_title", "") or "").strip()
+        if not target_title:
+            return
+
+        # Resume selector trigger is present only on some apply flows.
+        trigger_selectors = [
+            "[data-qa='resume-title']",
+            "xpath=//*[@data-qa='resume-title']",
+        ]
+        trigger_clicked = False
+        for selector in trigger_selectors:
+            try:
+                if await safe_click(self.page, selector, timeout=2000):
+                    trigger_clicked = True
+                    break
+            except Exception:
+                continue
+
+        if trigger_clicked:
+            await self.pause_async(0.5, 1)
+
+        # Options list appears as magritte select list
+        options_locator = self.page.locator("[data-qa^='magritte-select-option-']")
+        try:
+            await options_locator.first.wait_for(state="visible", timeout=3000)
+        except Exception:
+            return
+
+        options = await options_locator.all()
+        if not options:
+            return
+
+        titles: List[str] = []
+        for opt in options:
+            title_el = opt.locator("[data-qa='resume-title'] [data-qa='cell-text-content']").first
+            if await title_el.count() == 0:
+                title_el = opt.locator("[data-qa='resume-title']").first
+            title_text = (await title_el.text_content()) if await title_el.count() > 0 else ""
+            title_text = re.sub(r"\s+", " ", (title_text or "")).strip()
+            titles.append(title_text)
+
+        # Pick the closest title
+        target_norm = target_title.lower()
+        best_idx = None
+        best_dist = None
+        for idx, title in enumerate(titles):
+            if not title:
+                continue
+            d = distance(target_norm, title.lower())
+            if best_dist is None or d < best_dist:
+                best_dist = d
+                best_idx = idx
+
+        if best_idx is None:
+            return
+
+        await safe_click(self.page, "[data-qa^='magritte-select-option-']", element_number=best_idx)
+
+        await self.pause_async(0.5, 1)
+
+        await safe_click(self.page, "[data-qa='vacancy-response-submit-popup']", timeout=10000)
 
     async def _handle_question(
         self,
@@ -1468,7 +1539,9 @@ class PlaywrightJobManager:
 
     async def _get_resume_phone(self) -> str:
         """Получает телефон из резюме."""
-        phone = self.page.locator('[data-qa="resume-contact-phone-value-text"]')
+        phone = self.page.locator(
+            '[data-qa="resume-contact-phone-value-text"], [data-qa="resume-contact-phone-value-preferred-text"]'
+        )
         if await phone.count() > 0:
             phone = await phone.first.text_content()
             phone = sanitize_text(phone)
@@ -1477,7 +1550,9 @@ class PlaywrightJobManager:
 
     async def _get_resume_email(self) -> str:
         """Получает email из резюме."""
-        email = self.page.locator('[data-qa="resume-contact-email-value-preferred-text"]')
+        email = self.page.locator(
+            '[data-qa="resume-contact-email-value-text"], [data-qa="resume-contact-email-value-preferred-text"]'
+        )
         if await email.count() > 0:
             email = await email.first.text_content()
             email = sanitize_text(email, lowercase=False)

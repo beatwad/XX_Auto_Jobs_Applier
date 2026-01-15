@@ -38,7 +38,7 @@
 - **Configuration**:
   - `data_folder/secrets/secrets.yaml`: API keys, credentials, tokens.
   - `data_folder/search_config/search_config.yaml`: Job search parameters (position, blacklist, etc.).
-  - `src/app_config.py`: Global app settings (modes, thresholds, logging levels).
+  - `data_folder/app_config/app_config.yaml`: Global app settings (modes, thresholds, logging levels).
 - **Modules** (`src/`):
   - `job_manager/`: Core logic for API interaction, application flow, and resume scraping.
     - `playwright_manager.py`: Manages Playwright browser instance, authentication, and high-level interactions with hh.ru.
