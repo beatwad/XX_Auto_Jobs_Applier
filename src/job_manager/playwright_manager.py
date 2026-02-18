@@ -1369,9 +1369,7 @@ class PlaywrightJobManager:
             resume["personal_information"]["habr_career"] = habr_career
         await safe_click(
             self.page,
-            "xpath=//*[@data-qa='profile-common-card']//*["
-            "@data-qa='link' and .//*[@data-qa='link-text' and normalize-space()='Редактировать']"
-            "]",
+            '[data-qa="profile-common-card-edit"]',
             timeout=10000,
         )
         await self.pause_async(2, 3)
@@ -1462,17 +1460,19 @@ class PlaywrightJobManager:
     async def _get_middle_name(self) -> str:
         """Получает отчество из профиля."""
         middle_name = self.page.locator('[data-qa*="profile-common-edit-middleName"]')
-        if await middle_name.count() > 0:
-            middle_name = await middle_name.first.get_attribute("value")
-            middle_name = sanitize_text(middle_name, lowercase=False)
+        if await middle_name.count() == 0:
+            return ""
+        middle_name = await middle_name.first.get_attribute("value")
+        middle_name = sanitize_text(middle_name, lowercase=False)
         return middle_name
 
     async def _get_birthday(self) -> str:
         """Получает дату рождения."""
         birthday = self.page.locator('[data-qa="profile-common-edit-birthday"]')
-        if await birthday.count() > 0:
-            birthday = await birthday.first.get_attribute("value")
-            birthday = sanitize_text(birthday)
+        if await birthday.count() == 0:
+            return ""
+        birthday = await birthday.first.get_attribute("value")
+        birthday = sanitize_text(birthday)
         return birthday
 
     async def _get_sex_citizenship_and_legal_auth(self) -> Tuple[str, str, str]:
@@ -1503,131 +1503,131 @@ class PlaywrightJobManager:
     async def _get_telegram(self) -> str:
         """Получает Telegram из контактов."""
         telegram = self.page.locator("xpath=//*[contains(text(), 'Telegram')]")
-        if await telegram.count() > 0:
-            parent = telegram.first.locator("../../../../../../../..")
-            telegram = await parent.text_content()
-            telegram = telegram.replace("Telegram", "").strip()
-            return telegram
-        return ""
+        if await telegram.count() == 0:
+            return ""
+        parent = telegram.first.locator("../../../../../../../..")
+        telegram = await parent.text_content()
+        telegram = telegram.replace("Telegram", "").strip()
+        return telegram
 
     async def _get_whatsapp(self) -> str:
         """Получает WhatsApp из контактов."""
         whatsapp = self.page.locator("xpath=//*[contains(text(), 'Whatsapp')]")
-        if await whatsapp.count() > 0:
-            parent = whatsapp.first.locator("../../../../../../../..")
-            whatsapp = await parent.text_content()
-            whatsapp = whatsapp.replace("Whatsapp", "").strip()
-            return whatsapp
-        return ""
+        if await whatsapp.count() == 0:
+            return ""
+        parent = whatsapp.first.locator("../../../../../../../..")
+        whatsapp = await parent.text_content()
+        whatsapp = whatsapp.replace("Whatsapp", "").strip()
+        return whatsapp
 
     async def _get_area(self) -> str:
         """Получает местоположение (город)."""
         area = self.page.locator("xpath=//*[contains(text(), 'Где живёте')]")
-        if await area.count() > 0:
-            parent = area.first.locator("../../../../../../../..")
-            area = await parent.text_content()
-            area = area.replace("Где живёте", "").strip()
-            area = area.split("·")[0].strip()
-            return area
-        return ""
+        if await area.count() == 0:
+            return ""
+        parent = area.first.locator("../../../../../../../..")
+        area = await parent.text_content()
+        area = area.replace("Где живёте", "").strip()
+        area = area.split("·")[0].strip()
+        return area
 
     async def _get_driving_license(self) -> str:
         """Получает информацию о водительских правах."""
         driving_license = self.page.locator("xpath=//*[contains(text(), 'Опыт вождения')]")
-        if await driving_license.count() > 0:
-            parent = driving_license.first.locator("../../..")
-            driving_license = await parent.text_content()
-            driving_license = driving_license.replace("Опыт вождения", "").strip()
-            driving_license = sanitize_text(driving_license)
-            driving_license = driving_license.split("·")[0].strip()
-            return driving_license
-        return ""
+        if await driving_license.count() == 0:
+            return ""
+        parent = driving_license.first.locator("../../..")
+        driving_license = await parent.text_content()
+        driving_license = driving_license.replace("Опыт вождения", "").strip()
+        driving_license = sanitize_text(driving_license)
+        driving_license = driving_license.split("·")[0].strip()
+        return driving_license
 
     async def _get_resume_phone(self) -> str:
         """Получает телефон из резюме."""
         phone = self.page.locator(
             '[data-qa="resume-contact-phone-value-text"], [data-qa="resume-contact-phone-value-preferred-text"]'
         )
-        if await phone.count() > 0:
-            phone = await phone.first.text_content()
-            phone = sanitize_text(phone)
-            return phone
-        return ""
+        if await phone.count() == 0:
+            return ""
+        phone = await phone.first.text_content()
+        phone = sanitize_text(phone)
+        return phone
 
     async def _get_resume_email(self) -> str:
         """Получает email из резюме."""
         email = self.page.locator(
             '[data-qa="resume-contact-email-value-text"], [data-qa="resume-contact-email-value-preferred-text"]'
         )
-        if await email.count() > 0:
-            email = await email.first.text_content()
-            email = sanitize_text(email, lowercase=False)
-            return email
-        return ""
+        if await email.count() == 0:
+            return ""
+        email = await email.first.text_content()
+        email = sanitize_text(email, lowercase=False)
+        return email
 
     async def _get_salary(self) -> str:
         """Получает зарплату из резюме."""
         salary = self.page.locator('[data-qa="title-description"]')
-        if await salary.count() > 0:
-            salary = await salary.text_content()
-            salary = sanitize_text(salary)
-            return salary
-        return ""
+        if await salary.count() == 0:
+            return ""
+        salary = await salary.text_content()
+        salary = sanitize_text(salary)
+        return salary
 
     async def _get_job_type(self) -> str:
         """Получает тип занятости из резюме."""
         job_type = self.page.locator("xpath=//*[contains(text(), 'Тип занятости:')]")
-        if await job_type.count() > 0:
-            parent = job_type.first.locator("..")
-            job_type = await parent.text_content()
-            job_type = sanitize_text(job_type)
-            job_type = job_type.split(":")[1].strip()
-            return job_type
-        return ""
+        if await job_type.count() == 0:
+            return ""
+        parent = job_type.first.locator("..")
+        job_type = await parent.text_content()
+        job_type = sanitize_text(job_type)
+        job_type = job_type.split(":")[1].strip()
+        return job_type
 
     async def _get_job_format(self) -> str:
         """Получает формат работы из резюме."""
         job_format = self.page.locator("xpath=//*[contains(text(), 'Формат работы:')]")
-        if await job_format.count() > 0:
-            parent = job_format.first.locator("..")
-            job_format = await parent.text_content()
-            job_format = sanitize_text(job_format)
-            job_format = job_format.split(":")[1].strip()
-            return job_format
-        return ""
+        if await job_format.count() == 0:
+            return ""
+        parent = job_format.first.locator("..")
+        job_format = await parent.text_content()
+        job_format = sanitize_text(job_format)
+        job_format = job_format.split(":")[1].strip()
+        return job_format
 
     async def _get_time_to_travel(self) -> str:
         """Получает желательное время в пути до работы."""
         time_to_travel = self.page.locator("xpath=//*[contains(text(), 'Желательное время')]")
-        if await time_to_travel.count() > 0:
-            parent = time_to_travel.first.locator("..")
-            time_to_travel = await parent.text_content()
-            time_to_travel = sanitize_text(time_to_travel)
-            time_to_travel = time_to_travel.split(":")[1].strip()
-            return time_to_travel
-        return ""
+        if await time_to_travel.count() == 0:
+            return ""
+        parent = time_to_travel.first.locator("..")
+        time_to_travel = await parent.text_content()
+        time_to_travel = sanitize_text(time_to_travel)
+        time_to_travel = time_to_travel.split(":")[1].strip()
+        return time_to_travel
 
     async def _get_readiness_to_job_trips(self) -> str:
         """Получает готовность к командировкам."""
         ready_to_job_trip = self.page.locator("xpath=//*[contains(text(), 'Командировки:')]")
-        if await ready_to_job_trip.count() > 0:
-            parent = ready_to_job_trip.first.locator("..")
-            ready_to_job_trip = await parent.text_content()
-            ready_to_job_trip = sanitize_text(ready_to_job_trip)
-            ready_to_job_trip = ready_to_job_trip.split(":")[1].strip()
-            return ready_to_job_trip
-        return ""
+        if await ready_to_job_trip.count() == 0:
+            return ""
+        parent = ready_to_job_trip.first.locator("..")
+        ready_to_job_trip = await parent.text_content()
+        ready_to_job_trip = sanitize_text(ready_to_job_trip)
+        ready_to_job_trip = ready_to_job_trip.split(":")[1].strip()
+        return ready_to_job_trip
 
     async def _get_total_experience(self) -> str:
         """Получает общий опыт работы."""
         total_experience = self.page.locator("xpath=//*[contains(text(), 'Опыт работы:')]")
-        if await total_experience.count() > 0:
-            parent = total_experience.first.locator("..")
-            total_experience = await parent.text_content()
-            total_experience = sanitize_text(total_experience)
-            total_experience = total_experience.split(":")[1].strip()
-            return total_experience
-        return ""
+        if await total_experience.count() == 0:
+            return ""
+        parent = total_experience.first.locator("..")
+        total_experience = await parent.text_content()
+        total_experience = sanitize_text(total_experience)
+        total_experience = total_experience.split(":")[1].strip()
+        return total_experience
 
     async def _get_experience(self) -> str:
         """Получает опыт работы (описание)."""
