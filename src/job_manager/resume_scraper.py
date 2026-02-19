@@ -128,6 +128,8 @@ class ResumeScraper:
 
     def anonymize_personal_information(self) -> None:
         """Анонимазовать персональные данные путем подмены их на данные-пустышки"""
+        if not ANONYMIZE:
+            return
         sex = self.personal_information.get("sex")
         if sex.lower() == "женский":
             dummy_pesonal_info = DUMMY_PERSONAL_INFO_FEMALE
