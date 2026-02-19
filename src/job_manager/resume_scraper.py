@@ -1,5 +1,4 @@
 import re
-from datetime import datetime
 from typing import Any, Dict, List, Tuple
 
 import yaml
@@ -36,6 +35,8 @@ class ResumeScraper:
         """Получить ID нужного резюме"""
         response = await self.manager.get_my_resumes_from_browser()
         resumes = response.get("items", [])
+        if not resumes:
+            raise ValueError("Список резюме пуст: не удалось получить резюме из профиля hh.ru")
         # найти среди резюме наиболее схожее по названию с должностью, что указана в настройках
         resume_titles = [r["title"] if r["title"] else "" for r in resumes]
         # если не задана должность - возвращаем первое резюме

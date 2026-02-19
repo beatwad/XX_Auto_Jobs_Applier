@@ -1291,7 +1291,8 @@ class PlaywrightJobManager:
         # Wait until resume cards are visible on the resumes/profile page
         try:
             await self.page.wait_for_selector(
-                '[data-qa="resume"], [data-qa="resume resume-highlighted"]', timeout=15000
+                'a[data-qa^="resume-card-link-"][href*="/resume/"]',
+                timeout=15000,
             )
         except Exception:
             logger.warning("Resume list not found after opening 'Резюме и профиль' page.")
@@ -1311,21 +1312,17 @@ class PlaywrightJobManager:
         resumes: List[Dict[str, Any]] = []
         seen_ids: set[str] = set()
 
-        cards = await self.page.locator(
-            '[data-qa="resume"], [data-qa="resume resume-highlighted"]'
+        links = await self.page.locator(
+            'a[data-qa^="resume-card-link-"][href*="/resume/"]'
         ).all()
-        for card in cards:
-            title = (await card.get_attribute("data-qa-title")) or ""
-            title = title.strip()
+        for link in links:
+            title_el = link.locator('[data-qa="resume-title"] [data-qa="cell-text-content"]').first
+            title = ((await title_el.text_content()) or "").strip()
             if not title:
-                title_el = card.locator('[data-qa="title"]').first
+                title_el = link.locator('[data-qa="resume-title"]').first
                 title = ((await title_el.text_content()) or "").strip()
 
-            link = card.locator('a[href][data-qa^="resume-card-link-"]').first
-            if await link.count() == 0:
-                link = card.locator('a[href*="/resume/"], a[href*="/profile/resume?resume="]').first
-
-            href = await link.get_attribute("href") if await link.count() > 0 else None
+            href = await link.get_attribute("href")
             resume_id = _extract_resume_id_from_href(href)
             if not resume_id:
                 continue
