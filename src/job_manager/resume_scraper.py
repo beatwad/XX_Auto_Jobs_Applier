@@ -7,7 +7,11 @@ from Levenshtein import distance
 from src.constants import DUMMY_PERSONAL_INFO_FEMALE, DUMMY_PERSONAL_INFO_MALE
 from src.job_manager.playwright_manager import PlaywrightJobManager
 from src.logger_config import logger
+from src.utils.utils import load_app_config
 from src.utils.json_to_readable import transform_resume_data
+
+config = load_app_config()
+ANONYMIZE = config.get("ANONYMIZE", True)
 
 
 class ResumeScraper:
@@ -136,6 +140,8 @@ class ResumeScraper:
 
     def anonymize_text(self, input_: str) -> str:
         """If some key words are found in resume text - anonymize them"""
+        if not ANONYMIZE:
+            return input_
         sex = self.resume_info["personal_information"].get("sex")
         if sex.lower() == "женский":
             dummy_pesonal_info = DUMMY_PERSONAL_INFO_FEMALE
@@ -171,6 +177,8 @@ class ResumeScraper:
 
     def deanonymize_personal_information(self, output: str) -> str:
         """Деанонимазовать данные в ответе"""
+        if not ANONYMIZE:
+            return output
         sex = self.personal_information.get("sex")
         if sex.lower() == "женский":
             dummy_pesonal_info = DUMMY_PERSONAL_INFO_FEMALE
