@@ -1008,9 +1008,9 @@ class PlaywrightJobManager:
         apply_btn_top_selector = '[data-qa="vacancy-response-link-top"]'
         apply_btn_bottom_selector = '[data-qa="vacancy-response-link-bottom"]'
 
-        clicked = await safe_click(self.page, apply_btn_top_selector)
+        clicked = await safe_click(self.page, apply_btn_top_selector, click_all=True)
         if not clicked:
-            clicked = await safe_click(self.page, apply_btn_bottom_selector)
+            clicked = await safe_click(self.page, apply_btn_bottom_selector, click_all=True)
 
         if not clicked:
             # Check if already applied or other state
@@ -1312,9 +1312,7 @@ class PlaywrightJobManager:
         resumes: List[Dict[str, Any]] = []
         seen_ids: set[str] = set()
 
-        links = await self.page.locator(
-            'a[data-qa^="resume-card-link-"][href*="/resume/"]'
-        ).all()
+        links = await self.page.locator('a[data-qa^="resume-card-link-"][href*="/resume/"]').all()
         for link in links:
             title_el = link.locator('[data-qa="resume-title"] [data-qa="cell-text-content"]').first
             title = ((await title_el.text_content()) or "").strip()

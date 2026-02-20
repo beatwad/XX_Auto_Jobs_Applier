@@ -284,7 +284,7 @@ class JobApplier:
             logger.info(
                 f"Количество вакансий, на которые успешно откликнулись: {self.success_applies_num}"
             )
-            logger.info(f"Общее количество успешных откликов: {self.total_applies_num}")
+            logger.info(f"Общее количество откликов: {self.total_applies_num}")
         if result != "Limit":
             self._save_company(job, apply_result, vacancy)
         # если страница была обработана быстрее, чем за минимальное время -
@@ -522,6 +522,7 @@ class JobApplier:
             "job_title": company_job_title,
             "link": vacancy["alternate_url"],
             "reason": reason,
+            "timestamp": datetime.now().isoformat(),
         }
 
         # Проверяем по company_id и/или по названию вакансии

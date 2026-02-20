@@ -109,6 +109,7 @@ async def safe_click(
     selector: str,
     timeout: int = 1000,
     element_number: int = 0,
+    click_all: bool = False,
     supress_warnings: bool = False,
 ) -> bool:
     """Safely click element with retries (async)"""
@@ -121,12 +122,39 @@ async def safe_click(
                 logger.warning(f"Element not found: {selector}")
             return False
 
-        # Select the first matched element (even if multiple)
+        # Click all elements until one click succeeds
+        if click_all:
+            if element_count > 1:
+                logger.debug(
+                    f"Found {element_count} elements for selector '{selector}', trying all until one click succeeds"
+                )
+            for idx in range(element_count):
+                target = locator.nth(idx)
+                try:
+                    try:
+                        await target.wait_for(state="visible", timeout=timeout)
+                    except Exception:
+                        await target.wait_for(state="attached", timeout=timeout)
+
+                    await target.scroll_into_view_if_needed()
+
+                    pause(0.1, 0.3)
+
+                    await target.click(timeout=timeout)
+                    logger.debug(f"Successfully clicked: {selector} (match #{idx})")
+                    return True
+                except Exception:
+                    continue
+            if not supress_warnings:
+                logger.warning(f"Failed to click any matched element '{selector}'")
+            return False
+
+        # Select element by provided index when not trying all
         target = locator.nth(element_number) if element_count > 1 else locator
 
         if element_count > 1:
             logger.debug(
-                f"Found {element_count} elements for selector '{selector}', using the first match"
+                f"Found {element_count} elements for selector '{selector}', using match #{element_number}"
             )
 
         # Ensure visibility and bring into view
@@ -139,8 +167,7 @@ async def safe_click(
         await target.scroll_into_view_if_needed()
 
         # Human-like pause before clicking
-        pause_time = random.uniform(0.1, 0.3)
-        await asyncio.sleep(pause_time)
+        pause(0.1, 0.3)
 
         await target.click(timeout=timeout)
         logger.debug(f"Successfully clicked: {selector}")
