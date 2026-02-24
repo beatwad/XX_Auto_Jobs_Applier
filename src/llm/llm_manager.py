@@ -80,9 +80,12 @@ class OpenAIModel(AIModel):
                 return response
             except Exception:
                 tb_str = traceback.format_exc()
-                logger.error(
-                    f"Ошибка доступа к LLM с использованием прокси {proxy.split('@')[-1]}: \n Traceback: {tb_str}"
-                )
+                if proxy:
+                    logger.error(
+                        f"Ошибка доступа к LLM с использованием прокси {proxy.split('@')[-1]}: \n Traceback: {tb_str}"
+                    )
+                else:
+                    logger.error(f"Ошибка доступа к LLM: \n Traceback: {tb_str}")
                 time.sleep(3)
 
 
@@ -127,9 +130,12 @@ class GeminiModel(AIModel):
                 return response
             except Exception:
                 tb_str = traceback.format_exc()
-                logger.error(
-                    f"Ошибка доступа к LLM с использованием прокси {proxy.split('@')[-1]}: \n Traceback: {tb_str}"
-                )
+                if proxy:
+                    logger.error(
+                        f"Ошибка доступа к LLM с использованием прокси {proxy.split('@')[-1]}: \n Traceback: {tb_str}"
+                    )
+                else:
+                    logger.error(f"Ошибка доступа к LLM: \n Traceback: {tb_str}")
                 time.sleep(3)
             finally:
                 try:
