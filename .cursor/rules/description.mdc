@@ -31,7 +31,7 @@
   - `pydantic` (Data validation)
   - `pyyaml` (Configuration)
   - `loguru` (Logging)
-- **AI Integration**: Supports OpenAI (GPT-4o), Google Gemini, etc.
+- **AI Integration**: Supports OpenAI, Google Gemini, etc.
 
 ## Architecture
 - **Entry Point**: `main.py` - initializes configuration and starts the bot loop.

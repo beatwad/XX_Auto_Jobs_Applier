@@ -755,3 +755,54 @@ class JobApplier:
             .rstrip(",")
         )
         return sanitized_text
+
+
+if __name__ == "__main__":
+    import asyncio
+
+    from src.constants import SEARCH_CONFIG_FILE, SECRETS_FILE
+    from src.job_manager.playwright_manager import PlaywrightJobManager
+    from src.job_manager.resume_scraper import ResumeScraper
+    from src.llm.llm_manager import GPTAnswerer
+    from src.views.config import SearchConfig, Secrets
+
+    TEST_VACANCY_URL = "https://hh.ru/vacancy/130698854"  # Replace with actual vacancy URL
+
+    async def _test_apply():
+        secrets_data = load_yaml_file(SECRETS_FILE)
+        secrets = Secrets(**secrets_data).model_dump()
+
+        parameters_data = load_yaml_file(SEARCH_CONFIG_FILE)
+        for key, value in parameters_data.items():
+            if value in ("None", ""):
+                parameters_data[key] = None
+        parameters = SearchConfig(**parameters_data).model_dump()
+
+        manager = PlaywrightJobManager(secrets)
+        await manager.initialize()
+
+        try:
+            gpt_answerer = GPTAnswerer(secrets["llm_api_key"], secrets["llm_proxy"], test_mode=True)
+            resume_component = ResumeScraper(
+                manager, parameters.get("job_title"), parameters.get("resume_id"), gpt_answerer
+            )
+            await resume_component.get_id_of_selected_resume()
+            resume_info, resume_readable = await resume_component.get_resume_info()
+            gpt_answerer.set_resume(resume_info, resume_readable)
+            gpt_answerer.set_search_parameters(parameters)
+
+            cover_letter = parameters.get("cover_letter") or ""
+            result, reason = await manager.apply_to_vacancy(
+                TEST_VACANCY_URL, cover_letter, gpt_answerer, resume_component
+            )
+            logger.info(f"Apply result: {result} — {reason}")
+            if result == "Error":
+                input("Нажмите Enter для выхода...")
+        except Exception:
+            tb_str = traceback.format_exc()
+            logger.error(f"Ошибка при тестовом отклике:\n{tb_str}")
+            input("Нажмите Enter для выхода...")
+        finally:
+            await manager.close()
+
+    asyncio.run(_test_apply())

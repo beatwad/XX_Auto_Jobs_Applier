@@ -499,7 +499,7 @@ class GPTAnswerer:
     а также написания сопроводительных писем.
     """
 
-    def __init__(self, llm_api_key: str, llm_proxy: str):
+    def __init__(self, llm_api_key: str, llm_proxy: str, test_mode: bool = False):
         self.job = None
         self.ai_adapter = AIAdapter(llm_api_key, llm_proxy)
         self.llm_cheap = LoggerChatModel(self.ai_adapter)
@@ -522,6 +522,7 @@ class GPTAnswerer:
                 prompts.parse_contacts_template, ContactInfo
             ),
         }
+        self.test_mode = test_mode
 
     @staticmethod
     def find_best_match(text: str, options: list[str]) -> str:
@@ -767,6 +768,14 @@ class GPTAnswerer:
         """
         Парсим контакты из резюме и возвращаем их в виде словаря.
         """
+        if self.test_mode:
+            return {
+                "telegram": "No info",
+                "whatsapp": "No info",
+                "email": "No info",
+                "phone": "No info",
+                "linkedin": "No info",
+            }
         logger.info("Парсим контакты из резюме")
         chain, parser = self.chains["parse_contacts"]
         output = chain.invoke(

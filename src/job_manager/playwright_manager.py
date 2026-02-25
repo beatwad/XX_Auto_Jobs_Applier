@@ -56,7 +56,7 @@ class PlaywrightJobManager:
         """Проверяет авторизацию, если нет - выполняет вход."""
         if not self.page:
             await self.initialize()
-        logger.info("Checking login status...")
+        logger.info("Проверяем статус авторизации...")
         await self.pause_async(2, 3)
         if not await self._is_logged_in():
             return await self._perform_login()
@@ -64,24 +64,24 @@ class PlaywrightJobManager:
 
     async def _perform_login(self) -> bool:
         """Выполняет процесс входа."""
-        # Click login button
+        # Нажимаем кнопку входа
         if not await safe_click(self.page, "[data-qa*='login']"):
-            logger.error("Could not find login button")
+            logger.error("Кнопка входа не найдена")
             return False
 
-        # Some flows show an account-type chooser first (employer vs applicant).
-        # We always want applicant/employee ("Я ищу работу") flow.
+        # В некоторых случаях сначала появляется выбор типа аккаунта (работодатель/соискатель).
+        # Всегда выбираем соискателя ("Я ищу работу").
         await self.pause_async(1, 2)
-        logger.info("Handling account type chooser")
+        logger.info("Обрабатываем выбор типа аккаунта")
         await self._handle_account_type_chooser_if_present()
 
-        # HH may default credential type to PHONE; switch to EMAIL if the toggle exists.
-        logger.info("Selecting email credential type")
+        # HH может по умолчанию использовать телефон; переключаемся на email, если переключатель есть.
+        logger.info("Выбираем тип учётных данных: email")
         await self._select_email_credential_type_if_present()
 
-        # Fill login (email) FIRST (HH can require it before switching to password form)
+        # Сначала вводим логин (email) — HH может требовать это перед переходом к форме пароля
         await self.pause_async(1, 2)
-        logger.info("Filling login")
+        logger.info("Вводим логин")
         await safe_fill(
             self.page,
             "//*[@data-qa='applicant-login-input-email']",
@@ -89,13 +89,13 @@ class PlaywrightJobManager:
             wait_for_timeout=2000,
         )
 
-        # Then open password form (button text: "Войти с паролем")
-        logger.info("Opening password form")
+        # Открываем форму пароля (кнопка "Войти с паролем")
+        logger.info("Открываем форму пароля")
         await safe_click(self.page, "//*[starts-with(@data-qa, 'expand-login-by')]")
         await self.pause_async(1, 2)
 
-        # Fill password
-        logger.info("Filling password")
+        # Вводим пароль
+        logger.info("Вводим пароль")
         await safe_fill(
             self.page,
             "//*[@data-qa='login-input-password' or @data-qa='applicant-login-input-password']",
@@ -104,46 +104,46 @@ class PlaywrightJobManager:
         )
         await self.pause_async(2, 3)
 
-        # Click submit (button text: "Войти"). Avoid clicking generic submit too early ("Дальше")
+        # Нажимаем кнопку "Войти" (не нажимаем "Дальше" раньше времени)
         await safe_click(self.page, "//*[@data-qa='submit-button']", timeout=10000)
         await self.pause_async(2, 3)
 
-        # Check for errors
+        # Проверяем наличие ошибок
         error_msg = self.page.locator("//*[@data-qa='account-login-error']")
         if await error_msg.count() > 0:
             text = await get_clean_text(error_msg.first)
-            logger.error(f"Login error: {text}")
+            logger.error(f"Ошибка входа: {text}")
             return False
 
-        # Verify login success
+        # Проверяем успешность входа
         if await self._is_logged_in():
-            logger.info("Login successful.")
-            # Save browser session after successful login
+            logger.info("Вход выполнен успешно.")
+            # Сохраняем сессию браузера после успешного входа
             await save_browser_session(self.context)
             return True
         else:
-            logger.warning("Login verification failed.")
+            logger.warning("Проверка входа не прошла.")
             return False
 
     async def _is_logged_in(self) -> bool:
         """Проверяет, выполнен ли вход."""
-        logger.info("Navigating to login page...")
+        logger.info("Переходим на страницу входа...")
         try:
             await self.page.goto("https://hh.ru/employer")
             logger.info("Переход на страницу: https://hh.ru/employer")
         except Exception as e:
-            logger.warning(f"Failed to navigate to login page: {e}")
-            logger.info("Trying to continue...")
+            logger.warning(f"Не удалось перейти на страницу входа: {e}")
+            logger.info("Пробуем продолжить...")
 
         try:
             resume_menu = self.page.locator('[data-qa="mainmenu_profileAndResumes"]')
             create_resume_button = self.page.locator('[data-qa="mainmenu_createResume"]')
 
             if await resume_menu.count() > 0 or await create_resume_button.count() > 0:
-                logger.info("User is already logged in.")
+                logger.info("Пользователь уже авторизован.")
                 return True
         except Exception as e:
-            logger.warning(f"Error checking login status: {e}")
+            logger.warning(f"Ошибка при проверке статуса авторизации: {e}")
         return False
 
     async def _handle_account_type_chooser_if_present(self) -> None:
@@ -165,15 +165,15 @@ class PlaywrightJobManager:
             has_applicant = (await applicant_card.count()) > 0
             has_submit = (await submit_btn.count()) > 0
         except Exception as e:
-            logger.warning(f"Error checking account type chooser: {e}")
+            logger.warning(f"Ошибка при проверке выбора типа аккаунта: {e}")
             return
 
         if not (has_container or (has_applicant and has_submit)):
             return
 
-        logger.info("Account type chooser detected. Selecting applicant account...")
+        logger.info("Обнаружен выбор типа аккаунта. Выбираем аккаунт соискателя...")
 
-        # Click applicant card (stable by data-qa); fallback to text match.
+        # Кликаем по карточке соискателя (по data-qa); откат на поиск по тексту.
         clicked = await safe_click(
             self.page,
             "//*[contains(@data-qa,'account-type-card-APPLICANT')]/ancestor::label[1]",
@@ -202,12 +202,12 @@ class PlaywrightJobManager:
         if (await switcher.count()) == 0:
             return
 
-        # In HH markup, selected state can appear as data-qa="credential-type-PHONE checked"
+        # В разметке HH выбранное состояние может иметь data-qa="credential-type-PHONE checked"
         phone_checked = self.page.locator("[data-qa*='credential-type-PHONE'][data-qa*='checked']")
         if (await phone_checked.count()) == 0:
             return
 
-        logger.info("Credential type switch detected. Switching to EMAIL...")
+        logger.info("Обнаружен переключатель типа учётных данных. Переключаемся на EMAIL...")
         clicked = await safe_click(
             self.page,
             "//*[@data-qa='credential-type-EMAIL']/ancestor::label[1]",
@@ -229,19 +229,19 @@ class PlaywrightJobManager:
 
         while await captcha_img.count() > 0:
             if (datetime.now() - start_time).total_seconds() > 3600:
-                logger.error("Captcha not solved in 1 hour.")
+                logger.error("Капча не решена за 1 час.")
                 break
 
-            logger.info("Captcha detected.")
+            logger.info("Обнаружена капча.")
 
             img_path = "captcha_image.png"
             message_id = str(int(datetime.now().timestamp() * 10**6))
 
-            # Send captcha if we haven't already (or just always send fresh screenshot)
+            # Отправляем капчу (или всегда свежий скриншот)
             try:
                 await captcha_img.first.screenshot(path=img_path)
             except Exception as e:
-                logger.error(f"Failed to save captcha image: {e}")
+                logger.error(f"Не удалось сохранить изображение капчи: {e}")
                 break
 
             tg_token = self.secrets["tg_token"]
@@ -250,7 +250,7 @@ class PlaywrightJobManager:
             tg_chat_id = self.secrets["tg_chat_id"]
             tg_topic_id = self.secrets["tg_captcha_topic_id"]
 
-            # Send image
+            # Отправляем изображение
             await process_captcha(
                 tg_token,
                 tg_api_id,
@@ -262,7 +262,7 @@ class PlaywrightJobManager:
                 listen=False,
             )
 
-            # Wait for answer
+            # Ждём ответа
             answer = await process_captcha(
                 tg_token,
                 tg_api_id,
@@ -275,11 +275,11 @@ class PlaywrightJobManager:
             )
 
             if answer:
-                logger.info(f"Received captcha answer: {answer}")
+                logger.info(f"Получен ответ на капчу: {answer}")
                 await safe_fill(self.page, "//*[@data-qa='account-captcha-input']", answer)
                 await safe_click(self.page, submit_selector)
 
-                # Wait for reload/check
+                # Ждём перезагрузки/проверки
                 await self.pause_async(5, 6)
                 if os.path.exists(img_path):
                     os.remove(img_path)
@@ -319,26 +319,26 @@ class PlaywrightJobManager:
                 break
 
         if not opened:
-            logger.warning("Advanced search button not found; trying to open advanced search URL")
+            logger.warning("Кнопка расширенного поиска не найдена; пробуем открыть URL расширенного поиска")
             try:
                 await self.page.goto("https://hh.ru/search/vacancy/advanced")
                 logger.info("Переход на страницу: https://hh.ru/search/vacancy/advanced")
             except Exception as e:
-                logger.error(f"Failed to navigate to advanced search page: {e}")
+                logger.error(f"Не удалось перейти на страницу расширенного поиска: {e}")
                 return
 
-        # Wait for advanced-search UI to be present
+        # Ждём появления интерфейса расширенного поиска
         try:
             await self.page.wait_for_selector(
                 "[data-qa='vacancysearch__keywords-input']", timeout=15000
             )
         except Exception:
-            # UI sometimes loads under different qa; keep going best-effort
+            # Иногда UI загружается с другим data-qa; продолжаем на лучших усилиях
             pass
 
         await self._handle_interfering_messages()
 
-        # 2) Apply settings (best-effort for each block)
+        # 2) Применяем настройки (по возможности для каждого блока)
         # TODO: добавить частоту выплат, график работы, рабочие часы, категорию прав
         await self._set_keywords()
         await self._set_search_field()
@@ -357,9 +357,9 @@ class PlaywrightJobManager:
         await self._set_order_by()
         await self._set_period()
         await self._set_show()
-        # 3) Handle interfering messages
+        # 3) Обрабатываем мешающие сообщения
         await self._handle_interfering_messages()
-        # 4) Start search
+        # 4) Запускаем поиск
         if not await safe_click(
             self.page, "[data-qa='advanced-search-submit-button']", timeout=10000
         ):
@@ -369,7 +369,7 @@ class PlaywrightJobManager:
         await self.pause_async(2, 3)
 
     # -----------------------------
-    # Advanced search helpers (UI)
+    # Вспомогательные методы расширенного поиска (UI)
     # -----------------------------
 
     @staticmethod
@@ -381,7 +381,7 @@ class PlaywrightJobManager:
             return [str(v).strip() for v in value if str(v).strip()]
         if not isinstance(value, str):
             return [str(value).strip()] if str(value).strip() else []
-        # Accept both comma and semicolon separated input
+        # Принимаем ввод, разделённый запятыми или точками с запятой
         raw = value.replace(";", ",")
         return [v.strip() for v in raw.split(",") if v.strip()]
 
@@ -458,8 +458,8 @@ class PlaywrightJobManager:
         if not enabled:
             return
 
-        # New HH advanced search uses checkbox inputs: name="search_field", value in {name, company_name, description}
-        # Click by input/label first (more stable than text), then fallback to old text-based clicking.
+        # Новый расширенный поиск HH использует чекбоксы: name="search_field", value in {name, company_name, description}
+        # Сначала кликаем по input/label (стабильнее), затем откат к поиску по тексту.
         for key in ("name", "company_name", "description"):
             if key not in enabled:
                 continue
@@ -470,7 +470,7 @@ class PlaywrightJobManager:
                 timeout=10000,
             )
             if not clicked:
-                # Old selenium-era fallback: click by visible text
+                # Старый вариант отката: клик по видимому тексту
                 text_map = {
                     "name": "в названии вакансии",
                     "company_name": "в названии компании",
@@ -504,7 +504,7 @@ class PlaywrightJobManager:
         if not value:
             return
 
-        # Open modal
+        # Открываем модальное окно
         opened = False
         for selector in (
             f"xpath=//*[normalize-space()='{open_text}']",
@@ -521,7 +521,7 @@ class PlaywrightJobManager:
         await safe_fill(self.page, f"xpath={search_input_xpath}", value, timeout=10000)
         await self.pause_async(1, 2)
 
-        # Suggestions inside modal
+        # Подсказки внутри модального окна
         suggestion_xpath = (
             "//*[starts-with(@data-qa, 'tree-selector-item') "
             "or starts-with(@data-qa, 'bloko-tree-selector-item-text') "
@@ -530,7 +530,7 @@ class PlaywrightJobManager:
 
         picked = await self._click_best_suggestion(value, f"xpath={suggestion_xpath}")
         if not picked:
-            # close/cancel modal if nothing found
+            # Закрываем/отменяем модальное окно, если ничего не найдено
             await safe_click(
                 self.page,
                 "xpath=//*[@data-qa='composite-selection-tree-selector-modal-cancel' or @data-qa='bloko-tree-selector-popup-cancel']",
@@ -572,7 +572,7 @@ class PlaywrightJobManager:
             return
 
         input_selector = "[data-qa='advanced-search-region-add'] input"
-        # Some HH versions use a custom input without <input>
+        # В некоторых версиях HH используется нестандартный ввод без <input>
         if await self.page.locator(input_selector).count() == 0:
             input_selector = "[data-qa='advanced-search-region-add']"
 
@@ -627,8 +627,8 @@ class PlaywrightJobManager:
         if not currency_key:
             return
 
-        # New HH UI uses "chips" with radio inputs: name="currency_code", data-qa="currency-code-RUR|EUR|USD"
-        # Prefer clicking the label that contains the radio input (inputs may be visually hidden).
+        # Новый интерфейс HH использует "chips" с радиокнопками: name="currency_code", data-qa="currency-code-RUR|EUR|USD"
+        # Предпочтительно кликать по label с радиокнопкой (сами кнопки могут быть скрыты).
         clicked = await safe_click(
             self.page,
             f"xpath=//label[.//input[@name='currency_code' and (@value='{currency_key}' or @data-qa='currency-code-{currency_key}')]]",
@@ -638,7 +638,7 @@ class PlaywrightJobManager:
             await self.pause_async(0.5, 1)
             return
 
-        # Fallback: some older versions use a <select> or different container
+        # Откат: в некоторых старых версиях используется <select> или другой контейнер
         select_locator = self.page.locator(
             "select[name='currency'], [data-qa='advanced-search-currency'] select"
         )
@@ -663,7 +663,7 @@ class PlaywrightJobManager:
         only = self.search_params.get("only_with_salary")
         if only is not True:
             return
-        # New HH UI: checkbox is input name="label" value="with_salary"
+        # Новый интерфейс HH: чекбокс — input name="label" value="with_salary"
         if await safe_click(
             self.page,
             "xpath=//label[.//input[@name='label' and @value='with_salary']]",
@@ -672,7 +672,7 @@ class PlaywrightJobManager:
             await self.pause_async(0.5, 1)
             return
 
-        # Fallback: click by likely text (older versions)
+        # Откат: клик по тексту (старые версии)
         for t in (
             "Только с зарплатой",
             "Только с указанной зарплатой",
@@ -713,7 +713,7 @@ class PlaywrightJobManager:
         key = self._first_true_key(exp)
         if not key:
             return
-        # YAML uses doesntMatter, HH uses doesNotMatter
+        # В YAML используется doesntMatter, в HH — doesNotMatter
         if key == "doesntMatter":
             key = "doesNotMatter"
         await safe_click(
@@ -788,7 +788,7 @@ class PlaywrightJobManager:
         key = self._first_true_key(order_by)
         if not key:
             return
-        # relevance is typically default; still allow click if user asked.
+        # Релевантность — обычно значение по умолчанию; всё равно кликаем, если пользователь указал.
         await safe_click(
             self.page, f"[data-qa='advanced-search__order_by-item-label_{key}']", timeout=3000
         )
@@ -823,7 +823,7 @@ class PlaywrightJobManager:
         if not key_mapping.get(key):
             return
 
-        # New Magritte UI
+        # Новый интерфейс Magritte
         await safe_click(
             self.page,
             f"[data-qa='advanced-search__items_on_page-item-label_{key_mapping[key]}']",
@@ -832,7 +832,7 @@ class PlaywrightJobManager:
 
     async def get_vacancies_from_page(self, page_num: int = 0) -> List[Dict[str, Any]]:
         """Получить вакансии с очередной страницы."""
-        # Pagination logic: check if we are on the requested page
+        # Логика пагинации: проверяем, находимся ли на запрошенной странице
         try:
             if not self.search_page_url:
                 self.search_page_url = self.page.url
@@ -851,10 +851,10 @@ class PlaywrightJobManager:
                     await self.page.goto(new_url)
                     await self.pause_async(2, 3)
         except Exception as e:
-            logger.warning(f"Error handling pagination: {e}")
+            logger.warning(f"Ошибка при обработке пагинации: {e}")
 
         vacancies = []
-        # New selector based on Magritte redesign
+        # Новый селектор после редизайна Magritte
         cards = await self.page.locator('[data-qa="vacancy-serp__vacancy"]').all()
 
         logger.info(f"Найдено {len(cards)} вакансий на странице {page_num}")
@@ -869,7 +869,7 @@ class PlaywrightJobManager:
     async def _parse_vacancy_card(self, card: Locator) -> Optional[Dict[str, Any]]:
         """Парсит карточку вакансии из поисковой выдачи."""
         try:
-            # Title element
+            # Элемент заголовка
             title_el = card.locator('[data-qa="serp-item__title"]').first
             if await title_el.count() == 0:
                 return None
@@ -879,21 +879,21 @@ class PlaywrightJobManager:
             if not href:
                 return None
 
-            # Full URL
+            # Полный URL
             if not href.startswith("http"):
                 full_url = "https://hh.ru" + href
             else:
                 full_url = href
 
-            # Vacancy ID
+            # ID вакансии
             vacancy_id = None
-            # ID is usually in URL path /vacancy/123456
+            # ID обычно находится в пути URL /vacancy/123456
             match = re.search(r"vacancy/(\d+)", full_url)
             if match:
                 vacancy_id = match.group(1)
 
-            # Employer
-            employer_name = "Unknown"
+            # Работодатель
+            employer_name = "Неизвестно"
             employer_id = None
             emp_el = card.locator('[data-qa="vacancy-serp__vacancy-employer"]').first
             if await emp_el.count() > 0:
@@ -914,7 +914,7 @@ class PlaywrightJobManager:
                 },
             }
         except Exception as e:
-            logger.warning(f"Failed to parse vacancy card: {e}")
+            logger.warning(f"Не удалось распарсить карточку вакансии: {e}")
             return None
 
     async def get_vacancy_full_info(self, vacancy_url: str) -> Dict[str, Any]:
@@ -931,7 +931,7 @@ class PlaywrightJobManager:
         description = await get_text_or_empty('[data-qa="vacancy-description"]')
         title = await get_text_or_empty('[data-qa="vacancy-title"]')
 
-        # Skills
+        # Навыки
         skills_list = []
         skills_els = self.page.locator('[data-qa="skills-element"]')
         count = await skills_els.count()
@@ -939,7 +939,7 @@ class PlaywrightJobManager:
             skills_list.append(await get_clean_text(skills_els.nth(i)))
         skills = ", ".join(skills_list)
 
-        # Header details
+        # Детали заголовка
         experience = await get_text_or_empty('[data-qa="work-experience-text"]')
         employment = await get_text_or_empty('[data-qa="common-employment-text"]')
         hiring_formats = await get_text_or_empty('[data-qa="vacancy-hiring-formats"]')
@@ -947,10 +947,10 @@ class PlaywrightJobManager:
         working_hours = await get_text_or_empty('[data-qa="working-hours-text"]')
         work_formats = await get_text_or_empty('[data-qa="work-formats-text"]')
 
-        # Salary
+        # Зарплата
         salary = await get_text_or_empty('[data-qa="vacancy-salary"]')
         if not salary:
-            # Fallback based on snippet structure (Magritte)
+            # Откат по структуре сниппета (Magritte)
             salary = await get_text_or_empty("xpath=//div[contains(@class, 'vacancy-title')]/span")
 
         return {
@@ -973,17 +973,17 @@ class PlaywrightJobManager:
         while message_was_processed:
             await self.pause_async(2, 3)
 
-            # Cookies
+            # Куки
             cookies_btn = self.page.locator("xpath=//*[text()='Понятно']")
             if await cookies_btn.count() > 0:
                 await cookies_btn.click()
                 break
-            # Notifications
+            # Уведомления
             close_btn = self.page.locator('[data-qa="notification-close-button"]')
             if await close_btn.count() > 0:
                 await close_btn.click()
                 break
-            # Additional data collector popup
+            # Попап сбора дополнительных данных
             save_btn = self.page.locator('[data-qa="additional-data-collector__popup-save"]')
             if await save_btn.count() > 0:
                 await save_btn.click()
@@ -1004,7 +1004,7 @@ class PlaywrightJobManager:
 
         await self.pause_async(1, 2)
 
-        # Click Apply
+        # Нажимаем "Откликнуться"
         apply_btn_top_selector = '[data-qa="vacancy-response-link-top"]'
         apply_btn_bottom_selector = '[data-qa="vacancy-response-link-bottom"]'
 
@@ -1013,21 +1013,21 @@ class PlaywrightJobManager:
             clicked = await safe_click(self.page, apply_btn_bottom_selector, click_all=True)
 
         if not clicked:
-            # Check if already applied or other state
-            return "Error", "Apply button not found"
+            # Проверяем, был ли уже отклик или другое состояние
+            return "Error", "Кнопка отклика не найдена"
 
         await self.pause_async(1, 2)
 
         await self._select_resume(resume_component)
 
-        # Wait for modal or navigation
+        # Ждём модального окна или перехода
         await self._handle_interfering_messages()
 
-        # Handle Questions
+        # Обрабатываем вопросы
         questions_selector = '[data-qa="task-body"]'
         questions_count = await self.page.locator(questions_selector).count()
         if questions_count > 0:
-            logger.info(f"Found {questions_count} questions")
+            logger.info(f"Найдено {questions_count} вопросов")
             for i in range(questions_count):
                 question_xpath = f"(//*[@data-qa='task-body'])[{i + 1}]"
                 question_locator = self.page.locator(question_xpath)
@@ -1040,24 +1040,24 @@ class PlaywrightJobManager:
                 if not success:
                     return "Skip", msg
 
-        # Post-apply Cover Letter
+        # Сопроводительное письмо после отклика
         magritte_cl_form = self.page.locator('[data-qa="vacancy-response-letter-informer"]')
         if await magritte_cl_form.count() > 0:
-            logger.info("Found Magritte cover letter form")
+            logger.info("Найдена форма сопроводительного письма Magritte")
             await safe_fill(
                 self.page,
                 '[data-qa="vacancy-response-letter-informer"] textarea[name="text"]',
                 cover_letter,
             )
             await self.pause_async(1, 2)
-            # Submit the cover letter
+            # Отправляем сопроводительное письмо
             if await safe_click(
                 self.page, '[data-qa="vacancy-response-letter-submit"]', timeout=10000
             ):
                 await self.pause_async(2, 3)
-                return "Success", "Cover letter sent"
+                return "Success", "Сопроводительное письмо отправлено"
 
-        # Handle Cover Letter
+        # Обрабатываем сопроводительное письмо
         cl_btn_xpath = "xpath=//*[text()='Добавить' or contains(text(), 'Сопроводительное')]"
         if await self.page.locator(cl_btn_xpath).count() > 0:
             if await self.page.locator(cl_btn_xpath).first.is_visible():
@@ -1076,22 +1076,22 @@ class PlaywrightJobManager:
 
         await self._handle_interfering_messages()
 
-        # Check if Magritte modal with specific submit button is open
+        # Проверяем, открыто ли модальное окно Magritte с кнопкой отправки
         modal_submit_btn = self.page.locator('[data-qa="vacancy-response-submit-popup"]')
         if await modal_submit_btn.count() > 0 and await modal_submit_btn.is_visible():
-            logger.info("Found Magritte response modal submit button")
+            logger.info("Найдена кнопка отправки в модальном окне Magritte")
             await safe_click(self.page, '[data-qa="vacancy-response-submit-popup"]')
             await self.pause_async(3, 4)
             return "Success", ""
 
-        # Submit
+        # Отправляем
         submit_btn = self.page.locator("xpath=//*[text()='Откликнуться']")
         if await submit_btn.count() > 0:
             await safe_click(self.page, submit_btn)
             await self.pause_async(3, 4)
             return "Success", ""
 
-        return "Error", "Submit button not found"
+        return "Error", "Кнопка отправки не найдена"
 
     async def _select_resume(self, resume_component: Any) -> None:
         """Выбирает резюме из списка."""
@@ -1102,7 +1102,7 @@ class PlaywrightJobManager:
         if not target_title:
             return
 
-        # Resume selector trigger is present only on some apply flows.
+        # Триггер выбора резюме присутствует только в некоторых сценариях отклика.
         trigger_selectors = [
             "[data-qa='resume-title']",
             "xpath=//*[@data-qa='resume-title']",
@@ -1119,7 +1119,7 @@ class PlaywrightJobManager:
         if trigger_clicked:
             await self.pause_async(0.5, 1)
 
-        # Options list appears as magritte select list
+        # Список вариантов отображается как magritte select list
         options_locator = self.page.locator("[data-qa^='magritte-select-option-']")
         try:
             await options_locator.first.wait_for(state="visible", timeout=3000)
@@ -1139,7 +1139,7 @@ class PlaywrightJobManager:
             title_text = re.sub(r"\s+", " ", (title_text or "")).strip()
             titles.append(title_text)
 
-        # Pick the closest title
+        # Выбираем наиболее близкое название
         target_norm = target_title.lower()
         best_idx = None
         best_dist = None
@@ -1153,6 +1153,8 @@ class PlaywrightJobManager:
 
         if best_idx is None:
             return
+
+        logger.info(f"Выбрано резюме для отклика: {titles[best_idx]}")
 
         await safe_click(self.page, "[data-qa^='magritte-select-option-']", element_number=best_idx)
 
@@ -1168,18 +1170,18 @@ class PlaywrightJobManager:
         question_selector: Optional[str] = None,
     ) -> Tuple[bool, str]:
         """Обрабатывает одиночный вопрос в анкете."""
-        # 1. Extract Question Text
+        # 1. Извлекаем текст вопроса
         question_text_el = question.locator('[data-qa="task-question"]').first
         if await question_text_el.count() > 0:
             question_text = await get_clean_text(question_text_el)
         else:
             question_text = await get_clean_text(question)
-        logger.info(f"Handling question: {question_text}")
+        logger.info(f"Обрабатываем вопрос: {question_text}")
 
-        # 2. Check for Magritte Cells (Radio/Checkbox with labels)
+        # 2. Проверяем ячейки Magritte (Radio/Checkbox с метками)
         cells = await question.locator('[data-qa="cell"]').all()
         if cells:
-            # Determine type from first cell
+            # Определяем тип по первой ячейке
             is_radio = await cells[0].locator('[data-qa="radio-container"]').count() > 0
             is_checkbox = await cells[0].locator('[data-qa="checkbox-container"]').count() > 0
 
@@ -1190,64 +1192,64 @@ class PlaywrightJobManager:
                     text = await get_clean_text(text_el) if await text_el.count() > 0 else ""
                     options.append(text)
 
-                options.append("No info")
+                options.append("Нет информации")
 
                 if is_radio:
                     answer = gpt_answerer.select_one_answer_from_options(question_text, options)
                     clicked = False
                     for i, opt in enumerate(options):
-                        if opt == answer and opt != "No info":
+                        if opt == answer and opt != "Нет информации":
                             await cells[i].click()
                             clicked = True
                             break
                     if clicked:
                         return True, ""
-                    return False, "No suitable answer found"
+                    return False, "Подходящий ответ не найден"
 
                 elif is_checkbox:
                     answers = gpt_answerer.select_many_answers_from_options(question_text, options)
                     clicked = False
                     for i, opt in enumerate(options):
-                        if opt in answers and opt != "No info":
+                        if opt in answers and opt != "Нет информации":
                             await cells[i].click()
                             clicked = True
-                    return clicked, "No suitable answer found" if not clicked else ""
+                    return clicked, "Подходящий ответ не найден" if not clicked else ""
 
-        # 3. Radio (fallback)
+        # 3. Radio (откат)
         radios = await question.locator('[data-qa="radio-container"]').all()
         if radios:
             options = []
             for r in radios:
                 options.append(await get_clean_text(r))
 
-            options.append("No info")
+            options.append("Нет информации")
             answer = gpt_answerer.select_one_answer_from_options(question_text, options)
 
             for i, opt in enumerate(options):
-                if opt == answer and opt != "No info":
+                if opt == answer and opt != "Нет информации":
                     if question_selector:
-                        # Use safe_click with index relative to the question
+                        # Используем safe_click с индексом относительно вопроса
                         radio_xpath = f"{question_selector}//*[@data-qa='radio-container']"
                         await safe_click(self.page, radio_xpath, element_number=i)
                     else:
-                        # Fallback if no selector provided (should not happen with new call)
+                        # Откат, если не передан селектор (не должно происходить при новом вызове)
                         await radios[i].click()
                     return True, ""
-            return False, "No suitable answer found"
+            return False, "Подходящий ответ не найден"
 
-        # 4. Checkbox (fallback)
+        # 4. Checkbox (откат)
         checkboxes = await question.locator('[data-qa="checkbox-container"]').all()
         if checkboxes:
             options = []
             for c in checkboxes:
                 options.append(await get_clean_text(c))
 
-            options.append("No info")
+            options.append("Нет информации")
             answers = gpt_answerer.select_many_answers_from_options(question_text, options)
 
             clicked = False
             for i, opt in enumerate(options):
-                if opt in answers and opt != "No info":
+                if opt in answers and opt != "Нет информации":
                     if question_selector:
                         checkbox_xpath = f"{question_selector}//*[@data-qa='checkbox-container']"
                         await safe_click(self.page, checkbox_xpath, element_number=i)
@@ -1255,9 +1257,9 @@ class PlaywrightJobManager:
                         await checkboxes[i].click()
                     clicked = True
 
-            return clicked, "No suitable answer found" if not clicked else ""
+            return clicked, "Подходящий ответ не найден" if not clicked else ""
 
-        # 5. Textarea (Inside)
+        # 5. Textarea (внутри)
         textarea = question.locator("textarea")
         if await textarea.count() > 0:
             answer = gpt_answerer.answer_question_textual_wide_range(question_text)
@@ -1265,7 +1267,7 @@ class PlaywrightJobManager:
             await textarea.fill(answer)
             return True, ""
 
-        # 6. Textarea (Sibling - Magritte)
+        # 6. Textarea (соседний элемент - Magritte)
         if question_selector:
             sibling_textarea = self.page.locator(
                 f"xpath={question_selector}/following-sibling::div[@data-qa='textarea-wrapper'][1]//textarea"
@@ -1275,12 +1277,12 @@ class PlaywrightJobManager:
                 await sibling_textarea.fill(answer)
                 return True, ""
 
-        return False, "Unknown question type"
+        return False, "Неизвестный тип вопроса"
 
     async def get_my_resumes_from_browser(self) -> Dict[str, Any]:
         """Получает список резюме пользователя через браузер."""
         await self.ensure_logged_in()
-        # Open "Резюме и профиль" page from main menu
+        # Открываем страницу "Резюме и профиль" из главного меню
         menu_selector = '[data-qa="mainmenu_profileAndResumes"]'
         clicked = await safe_click(self.page, menu_selector, timeout=10000)
         if not clicked:
@@ -1288,14 +1290,14 @@ class PlaywrightJobManager:
             logger.info("Переход на страницу: https://hh.ru")
             await self.pause_async(1, 2)
             await safe_click(self.page, menu_selector, timeout=10000)
-        # Wait until resume cards are visible on the resumes/profile page
+        # Ждём появления карточек резюме на странице
         try:
             await self.page.wait_for_selector(
                 'a[data-qa^="resume-card-link-"][href*="/resume/"]',
                 timeout=15000,
             )
         except Exception:
-            logger.warning("Resume list not found after opening 'Резюме и профиль' page.")
+            logger.warning("Список резюме не найден после открытия страницы 'Резюме и профиль'.")
             return {"items": []}
 
         def _extract_resume_id_from_href(href: Optional[str]) -> Optional[str]:
@@ -1331,7 +1333,7 @@ class PlaywrightJobManager:
 
             resumes.append({"id": resume_id, "title": title})
 
-        logger.info(f"Found {len(resumes)} resumes")
+        logger.info(f"Найдено {len(resumes)} резюме")
 
         return {"items": resumes}
 
