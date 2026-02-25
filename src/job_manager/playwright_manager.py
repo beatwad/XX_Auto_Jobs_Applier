@@ -319,7 +319,9 @@ class PlaywrightJobManager:
                 break
 
         if not opened:
-            logger.warning("Кнопка расширенного поиска не найдена; пробуем открыть URL расширенного поиска")
+            logger.warning(
+                "Кнопка расширенного поиска не найдена; пробуем открыть URL расширенного поиска"
+            )
             try:
                 await self.page.goto("https://hh.ru/search/vacancy/advanced")
                 logger.info("Переход на страницу: https://hh.ru/search/vacancy/advanced")
@@ -1008,6 +1010,7 @@ class PlaywrightJobManager:
         apply_btn_top_selector = '[data-qa="vacancy-response-link-top"]'
         apply_btn_bottom_selector = '[data-qa="vacancy-response-link-bottom"]'
 
+        logger.info("Жмем кнопку 'Откликнуться'")
         clicked = await safe_click(self.page, apply_btn_top_selector, click_all=True)
         if not clicked:
             clicked = await safe_click(self.page, apply_btn_bottom_selector, click_all=True)
@@ -1019,6 +1022,7 @@ class PlaywrightJobManager:
         await self.pause_async(1, 2)
 
         await self._select_resume(resume_component)
+        logger.info("Выбрали резюме")
 
         # Ждём модального окна или перехода
         await self._handle_interfering_messages()
@@ -1040,10 +1044,10 @@ class PlaywrightJobManager:
                 if not success:
                     return "Skip", msg
 
-        # Сопроводительное письмо после отклика
+        # Сопроводительное письмо вариант 1
         magritte_cl_form = self.page.locator('[data-qa="vacancy-response-letter-informer"]')
         if await magritte_cl_form.count() > 0:
-            logger.info("Найдена форма сопроводительного письма Magritte")
+            logger.info("Найдена форма сопроводительного письма (вариант 1)")
             await safe_fill(
                 self.page,
                 '[data-qa="vacancy-response-letter-informer"] textarea[name="text"]',
@@ -1051,21 +1055,23 @@ class PlaywrightJobManager:
             )
             await self.pause_async(1, 2)
             # Отправляем сопроводительное письмо
+            logger.info("Жмем кнопку отправки сопроводительного письма (вариант 1)")
             if await safe_click(
                 self.page, '[data-qa="vacancy-response-letter-submit"]', timeout=10000
             ):
                 await self.pause_async(2, 3)
                 return "Success", "Сопроводительное письмо отправлено"
 
-        # Обрабатываем сопроводительное письмо
+        # Сопроводительное письмо вариант 2
         cl_btn_xpath = "xpath=//*[text()='Добавить' or contains(text(), 'Сопроводительное')]"
         if await self.page.locator(cl_btn_xpath).count() > 0:
             if await self.page.locator(cl_btn_xpath).first.is_visible():
+                logger.info("Жмем кнопку открытия формы сопроводительного письма (вариант 2)")
                 await safe_click(self.page, cl_btn_xpath, supress_warnings=True)
                 await self.pause_async(1, 2)
-
         cl_input = self.page.locator('[data-qa="vacancy-response-popup-form-letter-input"]')
         if await cl_input.count() > 0:
+            logger.info("Заполняем форму сопроводительного письма (вариант 2)")
             await safe_fill(
                 self.page,
                 '[data-qa="vacancy-response-popup-form-letter-input"]',
@@ -1076,17 +1082,18 @@ class PlaywrightJobManager:
 
         await self._handle_interfering_messages()
 
-        # Проверяем, открыто ли модальное окно Magritte с кнопкой отправки
+        # Проверяем, открыто ли окно с кнопкой отправки
         modal_submit_btn = self.page.locator('[data-qa="vacancy-response-submit-popup"]')
         if await modal_submit_btn.count() > 0 and await modal_submit_btn.is_visible():
-            logger.info("Найдена кнопка отправки в модальном окне Magritte")
+            logger.info("Жмем кнопку отправки сопроводительного письма (вариант 2)")
             await safe_click(self.page, '[data-qa="vacancy-response-submit-popup"]')
             await self.pause_async(3, 4)
             return "Success", ""
 
-        # Отправляем
+        # Жмем кнопку 'Откликнуться'
         submit_btn = self.page.locator("xpath=//*[text()='Откликнуться']")
         if await submit_btn.count() > 0:
+            logger.info("Жмем кнопку 'Откликнуться'")
             await safe_click(self.page, submit_btn)
             await self.pause_async(3, 4)
             return "Success", ""
