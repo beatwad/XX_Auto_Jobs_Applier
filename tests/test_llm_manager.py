@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock, patch
 
+from src.views.llm import JobIsInteresting
+
 import httpx
 import pytest
 from langchain_core.messages.ai import AIMessage
@@ -357,11 +359,11 @@ class TestGPTAnswerer:
 
         # Setup
         mock_chain = MagicMock()
-        mock_chain.invoke.return_value = "Score: 71\nReasoning: Good match"
+        mock_chain.invoke.return_value = JobIsInteresting(score=71, reasoning="Good match")
 
-        mock_create_chain = MagicMock(return_value=mock_chain)
+        mock_create_pydantic_chain = MagicMock(return_value=(mock_chain, MagicMock()))
 
-        with patch.object(GPTAnswerer, "_create_chain", mock_create_chain):
+        with patch.object(GPTAnswerer, "_create_pydantic_chain", mock_create_pydantic_chain):
             answerer = GPTAnswerer(mock_api_key, mock_llm_proxy)
             answerer.set_resume(mock_resume, mock_readable_resume)
             answerer.set_search_parameters(mock_search_parameters)
@@ -369,7 +371,7 @@ class TestGPTAnswerer:
 
             result = answerer.job_is_interesting()
 
-            assert result is True
+            assert result == {"score": 71, "reasoning": "Good match"}
             mock_chain.invoke.assert_called_once()
 
     @patch("src.llm.llm_manager.AIAdapter")
@@ -380,11 +382,11 @@ class TestGPTAnswerer:
 
         # Setup
         mock_chain = MagicMock()
-        mock_chain.invoke.return_value = "Score: 5\nReasoning: Not a good match"
+        mock_chain.invoke.return_value = JobIsInteresting(score=5, reasoning="Not a good match")
 
-        mock_create_chain = MagicMock(return_value=mock_chain)
+        mock_create_pydantic_chain = MagicMock(return_value=(mock_chain, MagicMock()))
 
-        with patch.object(GPTAnswerer, "_create_chain", mock_create_chain):
+        with patch.object(GPTAnswerer, "_create_pydantic_chain", mock_create_pydantic_chain):
             answerer = GPTAnswerer(mock_api_key, mock_llm_proxy)
             answerer.set_resume(mock_resume, mock_readable_resume)
             answerer.set_search_parameters(mock_search_parameters)
@@ -392,7 +394,7 @@ class TestGPTAnswerer:
 
             result = answerer.job_is_interesting()
 
-            assert result is False
+            assert result == {"score": 5, "reasoning": "Not a good match"}
             mock_chain.invoke.assert_called_once()
 
     @patch("src.llm.llm_manager.AIAdapter")

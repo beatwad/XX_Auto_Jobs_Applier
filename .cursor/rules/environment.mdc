@@ -1,0 +1,24 @@
+---
+description: Python environment details - interpreter location, manager, and key libraries
+alwaysApply: true
+---
+
+# Environment
+
+- **Manager**: Anaconda (`conda`), environment name: `xx`
+- **Python interpreter**: `/home/alex/anaconda3/envs/xx/bin/python` (Python 3.12.9)
+
+## Key Libraries
+
+| Library | Purpose |
+|---------|---------|
+| `playwright` | Browser automation |
+| `langchain`, `langchain-core`, `langchain-community` | LLM orchestration |
+| `langchain-google-genai`, `langchain_openai` | LLM providers (Gemini, OpenAI) |
+| `loguru` | Logging |
+| `httpx` | HTTP client |
+| `PyYAML` | YAML config parsing |
+| `jsonschema` | JSON validation |
+| `telethon`, `python-telegram-bot` | Telegram integration |
+| `Levenshtein` | String similarity |
+| `pytest`, `pytest-asyncio`, `pytest-mock`, `pytest-cov` | Testing |

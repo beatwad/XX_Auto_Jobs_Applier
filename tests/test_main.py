@@ -35,17 +35,12 @@ def valid_search_config():
             "salary_desc": False,
             "salary_asc": False,
         },
-        "access_token": "test_access_token",
-        "refresh_token": "test_refresh_token",
-        "tariff": "1day",
     }
 
 
 @pytest.fixture
 def valid_secrets():
     return {
-        "access_token": "test_access_token",
-        "refresh_token": "test_refresh_token",
         "hh_login": "test_login",
         "hh_password": "test_password",
         "llm_api_key": "test_key",
@@ -65,7 +60,6 @@ class TestConfigValidator:
 
         expected = {
             "job_title": "Software Engineer",
-            "user_id": "",
             "resume_id": "",
             "keywords": "",
             "max_applies_num": 10,
@@ -98,6 +92,7 @@ class TestConfigValidator:
                 "salary_asc": False,
             },
             "period": None,
+            "show": None,
             "cover_letter": None,
             "apply_once_at_company": True,
             "skip_companies_with_test": False,

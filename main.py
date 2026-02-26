@@ -14,6 +14,7 @@ from src.logger_config import logger
 from src.views.config import SearchConfig, Secrets
 from src.utils.utils import load_yaml_file
 
+# TODO: create tests for json_to_readable, browser_utils
 # TODO: actualize tests
 
 

@@ -1,783 +1,824 @@
 from datetime import datetime, timedelta
-from unittest.mock import MagicMock, mock_open, patch
+from unittest.mock import AsyncMock, MagicMock, mock_open, patch
 
 import pytest
 
+from src.job_manager.job_applier import JobApplier
+
 
 @pytest.fixture
-def mock_api():
-    api = MagicMock()
-    api.api_request.return_value = {"found": 10, "items": ["Test vacancy"]}
-    return api
+def mock_manager():
+    manager = MagicMock()
+    manager.get_vacancy_full_info = AsyncMock()
+    manager.get_vacancies_from_page = AsyncMock()
+    manager.apply_to_vacancy = AsyncMock()
+    return manager
 
 
 @pytest.fixture
 def mock_resume_component():
-    resume_component = MagicMock()
-    resume_component.job_title = "Software Developer"
-    resume_component.deanonymize_personal_information.return_value = "John Doe"
-    return resume_component
+    component = MagicMock()
+    component.job_title = "Python Developer"
+    return component
 
 
 @pytest.fixture
 def mock_search_component():
-    search_component = MagicMock()
-    search_component.search_params = {
-        "area": "1",
-        "professional_role": "96",
-        "period": "30",
-    }
-    return search_component
+    component = MagicMock()
+    component.start_search = AsyncMock()
+    return component
 
 
 @pytest.fixture
-def mock_gpt_answerer():
-    gpt_answerer = MagicMock()
-    gpt_answerer.write_cover_letter.return_value = "This is a mock cover letter"
-    gpt_answerer.job_is_interesting.return_value = True
-    gpt_answerer.resume_improvement_recommendations.return_value = "These are mock recommendations"
-    gpt_answerer.select_one_answer_from_options.return_value = "Option A"
-    gpt_answerer.select_many_answers_from_options.return_value = ["Option A", "Option C"]
-    gpt_answerer.answer_question_textual_wide_range.return_value = "This is my answer"
-    return gpt_answerer
+def applier(mock_manager, mock_resume_component, mock_search_component):
+    return JobApplier(mock_manager, mock_resume_component, mock_search_component)
 
 
 @pytest.fixture
-def mock_driver():
-    driver = MagicMock()
-    driver.find_elements.return_value = [MagicMock()]
-    return driver
-
-
-@pytest.fixture
-def job_applier(mock_api, mock_resume_component, mock_search_component):
-    from src.job_manager.job_applier import JobApplier
-
-    applier = JobApplier(mock_api, mock_resume_component, mock_search_component)
+def applier_with_params(applier):
+    """JobApplier с установленными параметрами (файловый I/O замокан)."""
+    resume_id = "resume123"
+    with (
+        patch.object(applier, "_load_companies_from_yaml", return_value={resume_id: {}}),
+        patch.object(applier, "_load_data_from_yaml", return_value={}),
+        patch.object(applier, "_load_seen_job_descriptions_from_file", return_value=[]),
+        patch.object(applier, "_load_cache", return_value={}),
+        patch.object(applier, "_check_the_previous_apply_number", return_value=0),
+    ):
+        applier.set_parameters(
+            {
+                "resume_id": resume_id,
+                "resume_titles": ["Python Developer"],
+                "max_applies_num": 10,
+                "max_total_applies_num": 1500,
+            }
+        )
+    applier.gpt_answerer = MagicMock()
     return applier
 
 
-@pytest.fixture
-def job_applier_with_params(job_applier, mock_gpt_answerer):
-    parameters = {
-        "user_id": "test_user",
-        "hh_login": "test_login",
-        "hh_password": "test_password",
-        "s3_bucket_name": "test_bucket",
-        "s3_access_key": "test_access_key",
-        "s3_secret_key": "test_secret_key",
-        "apply_once_at_company": True,
-        "skip_companies_with_test": False,
-        "cover_letter": "This is a fixed cover letter",
-        "job_blacklist": ["Blacklisted Company"],
-        "resume_id": "test_resume_id",
-        "resume_titles": ["resume_titles"],
+def _make_vacancy(
+    name="Python Dev",
+    vacancy_id="vac1",
+    company_id="comp1",
+    company_name="TestCo",
+    url="https://hh.ru/1",
+):
+    return {
+        "name": name,
+        "id": vacancy_id,
+        "employer": {"id": company_id, "name": company_name},
+        "alternate_url": url,
     }
 
-    # Mock methods for loading and saving data
-    with (
-        patch.object(
-            job_applier, "_load_companies_from_yaml", return_value={"Software Developer": {}}
-        ),
-        patch.object(job_applier, "_load_data_from_yaml", return_value={}),
-        patch.object(job_applier, "_load_cache", return_value={}),
-    ):
-        job_applier.set_parameters(parameters)
-        job_applier.set_gpt_answerer(mock_gpt_answerer)
-        job_applier.set_resume(
-            {"personal_information": {"first_name": "John", "last_name": "Doe"}},
-        )
-        yield job_applier
+
+def _make_job(
+    job_title="Python Dev",
+    vacancy_id="vac1",
+    company_id="comp1",
+    company_name="TestCo",
+    skills="python",
+    description="Описание вакансии",
+):
+    return {
+        "job_title": job_title,
+        "vacancy_id": vacancy_id,
+        "company_id": company_id,
+        "company_name": company_name,
+        "skills": skills,
+        "description": description,
+    }
 
 
-def test_job_applier_init(mock_api, mock_resume_component, mock_search_component):
-    """Test that JobApplier initializes correctly"""
-    from src.job_manager.job_applier import JobApplier
-
-    job_applier = JobApplier(mock_api, mock_resume_component, mock_search_component)
-    assert job_applier.api == mock_api
-    assert job_applier.resume_component == mock_resume_component
-    assert job_applier.search_component == mock_search_component
-    assert job_applier.page_num == 0
-    assert job_applier.error_num == 0
-    assert job_applier.jobs_no_info == []
-    assert job_applier.driver is None
+# ---------------------------------------------------------------------------
+# __init__
+# ---------------------------------------------------------------------------
 
 
-def test_set_parameters(job_applier):
-    """Test that parameters are set correctly"""
-    with (
-        patch.object(
-            job_applier, "_load_companies_from_yaml", return_value={"Software Developer": {}}
-        ),
-        patch.object(job_applier, "_load_data_from_yaml", return_value={}),
-        patch.object(job_applier, "_load_cache", return_value={}),
-    ):
-        parameters = {
-            "user_id": "test_user",
-            "hh_login": "test_login",
-            "hh_password": "test_password",
-            "s3_bucket_name": "test_bucket",
-            "s3_access_key": "test_access_key",
-            "s3_secret_key": "test_secret_key",
-            "apply_once_at_company": True,
-            "skip_companies_with_test": False,
-            "cover_letter": "This is a fixed cover letter",
-            "job_blacklist": ["Blacklisted Company"],
-            "resume_id": "resume_id",
-            "resume_titles": ["resume_titles"],
+class TestInit:
+    def test_sets_attributes(self, mock_manager, mock_resume_component, mock_search_component):
+        ja = JobApplier(mock_manager, mock_resume_component, mock_search_component)
+
+        assert ja.manager is mock_manager
+        assert ja.resume_component is mock_resume_component
+        assert ja.search_component is mock_search_component
+        assert ja.gpt_answerer is None
+        assert ja.jobs_no_info == []
+        assert ja.resume_recommendations == ""
+        assert ja.job_key_skills == []
+        assert ja.page_num == 0
+        assert ja.error_num == 0
+        assert ja.total_applies_num == 0
+
+
+# ---------------------------------------------------------------------------
+# set_parameters
+# ---------------------------------------------------------------------------
+
+
+class TestSetParameters:
+    def test_sets_required_fields(self, applier_with_params):
+        assert applier_with_params.resume_id == "resume123"
+        assert applier_with_params.resume_titles == ["Python Developer"]
+        assert applier_with_params.max_applies_num == 10
+        assert applier_with_params.job_title == "Python Developer"
+
+    def test_sets_defaults(self, applier_with_params):
+        assert applier_with_params.apply_once_at_company is True
+        assert applier_with_params.skip_companies_with_test is False
+        assert applier_with_params.job_blacklist == []
+        assert applier_with_params.applies_num == 0
+
+    def test_sanitizes_blacklist(self, applier, mock_resume_component):
+        mock_resume_component.job_title = "Python Developer"
+        with (
+            patch.object(applier, "_load_companies_from_yaml", return_value={"resume123": {}}),
+            patch.object(applier, "_load_data_from_yaml", return_value={}),
+            patch.object(applier, "_load_seen_job_descriptions_from_file", return_value=[]),
+            patch.object(applier, "_load_cache", return_value={}),
+            patch.object(applier, "_check_the_previous_apply_number", return_value=0),
+        ):
+            applier.set_parameters(
+                {
+                    "resume_id": "resume123",
+                    "resume_titles": [],
+                    "job_blacklist": ["Bad Company", '"Quoted Co"'],
+                }
+            )
+
+        assert "bad company" in applier.job_blacklist
+        assert "quoted co" in applier.job_blacklist
+
+
+# ---------------------------------------------------------------------------
+# _sanitize_text
+# ---------------------------------------------------------------------------
+
+
+class TestSanitizeText:
+    def test_lowercases_and_strips(self, applier):
+        assert applier._sanitize_text("  Hello World  ") == "hello world"
+
+    def test_removes_quotes(self, applier):
+        assert applier._sanitize_text('"test"') == "test"
+
+    def test_removes_backslash(self, applier):
+        assert applier._sanitize_text("test\\value") == "testvalue"
+
+    def test_removes_control_chars(self, applier):
+        assert applier._sanitize_text("test\x00value") == "testvalue"
+
+    def test_removes_newline(self, applier):
+        # \n попадает в диапазон [\x00-\x1F] и удаляется regex-ом до замены на пробел
+        assert applier._sanitize_text("test\nvalue") == "testvalue"
+
+    def test_strips_trailing_comma(self, applier):
+        assert applier._sanitize_text("test,") == "test"
+
+    def test_empty_string(self, applier):
+        assert applier._sanitize_text("") == ""
+
+
+# ---------------------------------------------------------------------------
+# _process_skill_string
+# ---------------------------------------------------------------------------
+
+
+class TestProcessSkillString:
+    def test_splits_on_comma_space(self, applier):
+        assert applier._process_skill_string("Python, SQL, Docker") == ["python", "sql", "docker"]
+
+    def test_lowercases(self, applier):
+        assert applier._process_skill_string("Python") == ["python"]
+
+    def test_removes_non_alphanumeric_except_spaces(self, applier):
+        result = applier._process_skill_string("C++, Node.js")
+        assert result == ["c", "nodejs"]
+
+    def test_empty_string(self, applier):
+        assert applier._process_skill_string("") == []
+
+    def test_skips_blank_parts(self, applier):
+        assert applier._process_skill_string("Python, , SQL") == ["python", "sql"]
+
+
+# ---------------------------------------------------------------------------
+# _is_blacklisted
+# ---------------------------------------------------------------------------
+
+
+class TestIsBlacklisted:
+    def test_returns_true_for_blacklisted_company(self, applier_with_params):
+        applier_with_params.job_blacklist = ["bad company"]
+        assert applier_with_params._is_blacklisted("bad company") is True
+
+    def test_returns_false_for_unknown_company(self, applier_with_params):
+        applier_with_params.job_blacklist = ["bad company"]
+        assert applier_with_params._is_blacklisted("good company") is False
+
+    def test_returns_false_for_empty_blacklist(self, applier_with_params):
+        applier_with_params.job_blacklist = []
+        assert applier_with_params._is_blacklisted("any company") is False
+
+
+# ---------------------------------------------------------------------------
+# _is_already_applied_to_job_or_company
+# ---------------------------------------------------------------------------
+
+
+class TestIsAlreadyAppliedToJobOrCompany:
+    def test_returns_false_for_new_company(self, applier_with_params):
+        applier_with_params.success_companies = {"resume123": {}}
+        is_applied, _ = applier_with_params._is_already_applied_to_job_or_company(_make_job())
+        assert is_applied is False
+
+    def test_skips_company_when_apply_once_at_company(self, applier_with_params):
+        applier_with_params.apply_once_at_company = True
+        applier_with_params.success_companies = {
+            "resume123": {"comp1": [{"vacancy_id": "vac1", "job_title": "Python Dev"}]}
         }
+        is_applied, reason = applier_with_params._is_already_applied_to_job_or_company(_make_job())
+        assert is_applied is True
+        assert reason != ""
 
-        job_applier.set_parameters(parameters)
-
-        assert job_applier.user_id == "test_user"
-        assert job_applier.hh_login == "test_login"
-        assert job_applier.hh_password == "test_password"
-        assert job_applier.fixed_cover_letter == "This is a fixed cover letter"
-        assert job_applier.job_blacklist == ["blacklisted company"]
-
-
-def test_search_vacancies(job_applier_with_params):
-    """Test that search_vacancies method calls the API correctly"""
-    job_applier_with_params.search_vacancies(page_num=1)
-    job_applier_with_params.api.api_request.assert_called_once_with(
-        f"https://api.hh.ru/resumes/{job_applier_with_params.resume_id}/similar_vacancies",
-        params={
-            "page": 1,
-            "per_page": 10,
-            "area": "1",
-            "professional_role": "96",
-            "period": "30",
-        },
-    )
-
-    job_applier_with_params.search_vacancies(page_num=0)
-
-    job_applier_with_params.api.api_request.call_count == 2
-    job_applier_with_params.api.api_request.assert_any_call(
-        "https://api.hh.ru/vacancies",
-        params={
-            "page": 0,
-            "per_page": 10,
-            "area": "1",
-            "professional_role": "96",
-            "period": "30",
-            "text": "Software Developer",
-        },
-    )
-
-    with patch.object(
-        job_applier_with_params.api, "api_request", return_value=MagicMock()
-    ) as mock_api_request:
-        mock_api_request.side_effect = [
-            {"items": [], "found": 0},
-            {"items": ["Main test vacancy"], "found": 1},
-        ]
-        vacancies = job_applier_with_params.search_vacancies(page_num=1)
-        assert vacancies == ["Main test vacancy"]
-
-
-def test_scrape_vacancy(job_applier_with_params):
-    """Test that scrape_vacancy method correctly extracts job information"""
-    # Mock the API response for vacancy details
-    job_applier_with_params.api.api_request.return_value = {
-        "description": "This is a job description",
-        "accept_handicapped": True,
-        "key_skills": [{"name": "Python"}, {"name": "Django"}],
-    }
-
-    # Create a mock vacancy
-    vacancy = {
-        "id": "123456",
-        "name": "Python Developer",
-        "area": {"name": "Moscow"},
-        "employer": {"name": "Test Company", "id": "654321"},
-        "has_test": False,
-        "snippet": {"requirement": "Python experience", "responsibility": "Develop web apps"},
-        "professional_roles": [{"name": "Developer"}],
-    }
-
-    job = job_applier_with_params.scrape_vacancy(vacancy)
-
-    assert job["job_title"] == "Python Developer"
-    assert job["vacancy_id"] == vacancy["id"]
-    assert job["company_id"] == vacancy["employer"]["id"]
-    assert job["area"] == "Moscow"
-    assert job["company_name"] == "Test Company"
-    assert job["has_test_task"] is False
-    assert job["requirement"] == "Python experience"
-    assert job["responsibility"] == "Develop web apps"
-    assert job["professional_roles"] == ["Developer"]
-    assert job["job_description"] == "This is a job description"
-    assert job["accept_handicapped_employers"] is True
-
-    # Check that the key skills were extracted
-    assert job_applier_with_params.job_key_skills == ["Python", "Django"]
-
-    # Create a mock vacancy
-    vacancy = {
-        "id": "123456",
-        "name": "Python Developer",
-        "area": {"name": "Moscow"},
-        "employer": {"name": "Test Company"},
-        "has_test": False,
-        "snippet": {"requirement": "Python experience", "responsibility": "Develop web apps"},
-        "professional_roles": [{"name": "Developer"}],
-    }
-
-    job = job_applier_with_params.scrape_vacancy(vacancy)
-
-    assert job["company_id"] is None
-
-
-def test_is_blacklisted(job_applier_with_params):
-    """Test that _is_blacklisted method correctly identifies blacklisted companies"""
-    assert job_applier_with_params._is_blacklisted("blacklisted company") is True
-    assert job_applier_with_params._is_blacklisted("Good Company") is False
-
-
-def test_is_already_applied_to_job_or_company(job_applier_with_params):
-    """Test that _is_already_applied_to_job_or_company correctly identifies already applied jobs"""
-    # Mock the API response for vacancy details
-    job_applier_with_params.api.api_request.return_value = {
-        "description": "This is a job description",
-        "accept_handicapped": True,
-        "key_skills": [{"name": "Python"}, {"name": "Django"}],
-    }
-
-    vacancy = {
-        "id": "123456",
-        "name": "Python Developer",
-        "area": {"name": "Moscow"},
-        "employer": {"name": "Test Company", "id": "654321"},
-        "has_test": False,
-        "snippet": {"requirement": "Python experience", "responsibility": "Develop web apps"},
-        "professional_roles": [{"name": "Developer"}],
-    }
-
-    job = job_applier_with_params.scrape_vacancy(vacancy)
-
-    # Check if company and vacancy ids are working
-    job_applier_with_params.success_companies = {
-        "test_resume_id": {"654321": [{"vacancy_id": "123456", "job_title": "Python Developer"}]}
-    }
-
-    # When apply_once_at_company is True, should return True for any job at the same company
-    is_applied, _ = job_applier_with_params._is_already_applied_to_job_or_company(job)
-    assert is_applied is True
-
-    # Check if company and vacnacy names are working
-    job_applier_with_params.success_companies = {
-        "test_resume_id": {"Test Company": [{"job_title": "Python Developer"}]}
-    }
-
-    # When apply_once_at_company is True, should return True for any job at the same company
-    is_applied, _ = job_applier_with_params._is_already_applied_to_job_or_company(job)
-    assert is_applied is True
-
-    # When apply_once_at_company is False, should only return True for the exact same job
-    job_applier_with_params.apply_once_at_company = False
-
-    is_applied, _ = job_applier_with_params._is_already_applied_to_job_or_company(job)
-    assert is_applied is True
-
-    # Only if both vacancy_id and job_title are not in the list of seen company - apply the vacancy
-    job_applier_with_params.success_companies = {
-        "test_resume_id": {
-            "654321": [{"vacancy_id": "123456", "job_title": "Python Developer"}],
-            "Test Company": [{"job_title": "Python Developer"}],
+    def test_skips_seen_vacancy_by_id_when_apply_once_disabled(self, applier_with_params):
+        applier_with_params.apply_once_at_company = False
+        applier_with_params.success_companies = {
+            "resume123": {"comp1": [{"vacancy_id": "vac1", "job_title": "Other Title"}]}
         }
-    }
+        is_applied, _ = applier_with_params._is_already_applied_to_job_or_company(_make_job())
+        assert is_applied is True
 
-    job["job_title"] = "New Job"
-    is_applied, _ = job_applier_with_params._is_already_applied_to_job_or_company(job)
-    assert is_applied is True
+    def test_skips_seen_vacancy_by_title_when_apply_once_disabled(self, applier_with_params):
+        applier_with_params.apply_once_at_company = False
+        applier_with_params.success_companies = {
+            "resume123": {"comp1": [{"vacancy_id": "vac99", "job_title": "Python Dev"}]}
+        }
+        is_applied, _ = applier_with_params._is_already_applied_to_job_or_company(_make_job())
+        assert is_applied is True
 
-    job["vacancy_id"] = "12345"
-    is_applied, _ = job_applier_with_params._is_already_applied_to_job_or_company(job)
-    assert is_applied is False
+    def test_matches_company_by_name_when_no_id(self, applier_with_params):
+        applier_with_params.apply_once_at_company = True
+        applier_with_params.success_companies = {
+            "resume123": {"TestCo": [{"vacancy_id": "vac1", "job_title": "Python Dev"}]}
+        }
+        is_applied, _ = applier_with_params._is_already_applied_to_job_or_company(
+            _make_job(company_id=None)
+        )
+        assert is_applied is True
 
-
-def test_sanitize_text(job_applier_with_params):
-    """Test that _sanitize_text correctly normalizes text"""
-    text = 'TEST Text with "quotes" and \n newlines, \r carriage returns'
-    sanitized = job_applier_with_params._sanitize_text(text)
-
-    assert sanitized == "test text with quotes and  newlines,  carriage returns"
-    assert sanitized.islower()
-    assert '"' not in sanitized
-    assert "\n" not in sanitized
-    assert "\r" not in sanitized
-
-
-def test_check_last_search_time(job_applier_with_params):
-    """Test that _check_the_last_search_time correctly checks time since last search"""
-    # Test when cache is empty
-    job_applier_with_params.cache = {}
-    assert job_applier_with_params.check_the_last_search_time() is True
-
-    # Test when last run was more than 24 hours ago
-    past_time = (datetime.now() - timedelta(hours=25)).isoformat()
-    job_applier_with_params.cache = {"last_run": past_time}
-    assert job_applier_with_params.check_the_last_search_time() is True
-
-    # Test when last run was less than 24 hours ago
-    recent_time = (datetime.now() - timedelta(hours=12)).isoformat()
-    job_applier_with_params.cache = {"last_run": recent_time}
-    assert job_applier_with_params.check_the_last_search_time() is False
-
-    # Test when last run was less than 24 hours ago but app was rebooted
-    recent_time = (datetime.now() - timedelta(hours=12)).isoformat()
-    job_applier_with_params.cache = {"last_run": recent_time}
-    job_applier_with_params.previous_apply_number = 3
-    assert job_applier_with_params.check_the_last_search_time() is True
+    def test_returns_false_for_different_company_and_vacancy(self, applier_with_params):
+        applier_with_params.apply_once_at_company = False
+        applier_with_params.success_companies = {
+            "resume123": {"comp2": [{"vacancy_id": "vac99", "job_title": "Java Dev"}]}
+        }
+        is_applied, _ = applier_with_params._is_already_applied_to_job_or_company(_make_job())
+        assert is_applied is False
 
 
-def test_save_and_load_data(job_applier_with_params):
-    """Test that data saving and loading methods work correctly"""
-    test_data = {"key": "value"}
-    filename = "test_file.yaml"
-
-    # Mock file operations
-    with (
-        patch("builtins.open", mock_open()) as mock_file,
-        patch("yaml.safe_dump") as mock_yaml_dump,
-    ):
-        job_applier_with_params._save_data_to_yaml(test_data, filename)
-
-        # Check that file operations were called
-        mock_file.assert_called_once()
-        mock_yaml_dump.assert_called_once()
+# ---------------------------------------------------------------------------
+# _job_description_is_already_met
+# ---------------------------------------------------------------------------
 
 
-def test_resume_improvement_recommendations(job_applier_with_params):
-    """Test resume_improvement_recommendations method"""
-    # Mock _load_data_from_yaml to return empty data (no existing recommendations)
-    with (
-        patch.object(job_applier_with_params, "_load_data_from_yaml", return_value={}),
-        patch.object(job_applier_with_params, "_save_data_to_yaml"),
-        patch.object(
-            job_applier_with_params.resume_component,
-            "deanonymize_personal_information",
-            return_value="These are mock recommendations",
-        ) as mock_save,
-    ):
-        job_applier_with_params.resume_improvement_recommendations()
+class TestJobDescriptionIsAlreadyMet:
+    def test_returns_true_for_seen_vacancy(self, applier):
+        applier.seen_job_descriptions = [{"vacancy_id": "vac1"}]
+        is_met, _ = applier._job_description_is_already_met("vac1")
+        assert is_met is True
 
-        # Check that GPT answerer was called and recommendations were saved
-        job_applier_with_params.gpt_answerer.resume_improvement_recommendations.assert_called_once()
-        mock_save.assert_called_once()
-        # import code; code.interact(local=dict(globals(), **locals()))
-        assert job_applier_with_params.resume_recommendations == "These are mock recommendations"
+    def test_returns_false_for_unseen_vacancy(self, applier):
+        applier.seen_job_descriptions = [{"vacancy_id": "vac1"}]
+        is_met, _ = applier._job_description_is_already_met("vac2")
+        assert is_met is False
 
-    # Reset mock for the second part of the test
-    job_applier_with_params.gpt_answerer.resume_improvement_recommendations.reset_mock()
-
-    # Test with existing recommendations
-    with (
-        patch.object(
-            job_applier_with_params, "_load_data_from_yaml", return_value="Existing recommendations"
-        ),
-        patch.object(job_applier_with_params, "_save_data_to_yaml") as mock_save,
-    ):
-        job_applier_with_params.resume_improvement_recommendations()
-
-        # GPT answerer should not be called when recommendations already exist
-        job_applier_with_params.gpt_answerer.resume_improvement_recommendations.assert_not_called()
-        mock_save.assert_not_called()
+    def test_returns_false_for_empty_list(self, applier):
+        applier.seen_job_descriptions = []
+        is_met, _ = applier._job_description_is_already_met("vac1")
+        assert is_met is False
 
 
-def test_update_skill_stat(job_applier_with_params):
-    """Test that _update_skill_stat correctly updates skill statistics"""
-    # Mock the _save_data_to_yaml method
-    with patch.object(job_applier_with_params, "_save_data_to_yaml") as mock_save:
-        # Initialize an empty skill stat dictionary
-        job_applier_with_params.skill_stat = {}
-
-        # Test with a list of skills
-        skills = ["Python", "Django", "Flask"]
-        job_applier_with_params._update_skill_stat(skills)
-
-        # Check that the skill stats were updated
-        assert job_applier_with_params.skill_stat == {"Python": 1, "Django": 1, "Flask": 1}
-        mock_save.assert_called_once()
-
-        # Reset the mock and test with a skill that contains multiple skills
-        mock_save.reset_mock()
-        job_applier_with_params._update_skill_stat(["Python; SQL; Git"])
-
-        # Check that each skill was counted separately
-        assert job_applier_with_params.skill_stat["Python"] == 2
-        assert job_applier_with_params.skill_stat["SQL"] == 1
-        assert job_applier_with_params.skill_stat["Git"] == 1
-        mock_save.assert_called_once()
+# ---------------------------------------------------------------------------
+# _collect_job_info
+# ---------------------------------------------------------------------------
 
 
-def test_process_skill_string(job_applier_with_params):
-    """Test that _process_skill_string correctly splits skill strings"""
-    skill_string = "Python; SQL; Git; --"
-    processed_skills = job_applier_with_params._process_skill_string(skill_string)
+class TestCollectJobInfo:
+    def test_appends_job_info(self, applier):
+        applier.jobs_no_info = []
+        applier._collect_job_info("Python Dev", "https://hh.ru/1", "Нет информации")
 
-    assert processed_skills == ["Python", "SQL", "Git"]
+        assert len(applier.jobs_no_info) == 1
+        info = applier.jobs_no_info[0]
+        assert info["job_title"] == "Python Dev"
+        assert info["link"] == "https://hh.ru/1"
+        assert info["reason"] == "Нет информации"
 
-    # Test with extra spaces and special characters
-    skill_string = "Python;   SQL (basic);Git!"
-    processed_skills = job_applier_with_params._process_skill_string(skill_string)
-
-    assert "Python" in processed_skills
-    assert "SQL basic" in processed_skills
-    assert "Git" in processed_skills
-
-
-def test_collect_job_info(job_applier_with_params):
-    """Test that _collect_job_info correctly adds job information to the list"""
-    job_applier_with_params.jobs_no_info = []
-
-    job_title = "Python Developer"
-    job_link = "https://hh.ru/vacancy/123456"
-    reason = "Test reason"
-
-    job_applier_with_params._collect_job_info(job_title, job_link, reason)
-
-    assert len(job_applier_with_params.jobs_no_info) == 1
-    assert job_applier_with_params.jobs_no_info[0]["job_title"] == job_title
-    assert job_applier_with_params.jobs_no_info[0]["link"] == job_link
-    assert job_applier_with_params.jobs_no_info[0]["reason"] == reason
+    def test_appends_multiple_entries(self, applier):
+        applier.jobs_no_info = []
+        applier._collect_job_info("Dev 1", "https://hh.ru/1", "Причина 1")
+        applier._collect_job_info("Dev 2", "https://hh.ru/2", "Причина 2")
+        assert len(applier.jobs_no_info) == 2
 
 
-def test_handle_radio_question(job_applier_with_params, mock_driver):
-    """Test that _handle_radio_question correctly handles radio button questions"""
-    # Setup mocks
-    job_applier_with_params.driver = mock_driver
+# ---------------------------------------------------------------------------
+# _add_job_info_to_seen_companies
+# ---------------------------------------------------------------------------
 
-    # Create mock question and radio fields
-    question = MagicMock()
-    question.text = "What is your preferred programming language?"
 
-    radio_fields = [MagicMock(), MagicMock(), MagicMock()]
-    for i, field in enumerate(radio_fields):
-        parent = MagicMock()
-        parent.text = f"Option {chr(65 + i)}"  # "Option A", "Option B", "Option C"
-        field.find_element.return_value = parent
+class TestAddJobInfoToSeenCompanies:
+    def test_appends_new_vacancy(self, applier):
+        job_info = {"vacancy_id": "vac2", "job_title": "New Job"}
+        company_vacancies = [{"vacancy_id": "vac1", "job_title": "Old Job"}]
+        applier._add_job_info_to_seen_companies(job_info, company_vacancies)
+        assert len(company_vacancies) == 2
 
-    # Test successful answer selection
-    with (
-        patch("src.job_manager.job_applier.scroll_slow"),
-        patch("src.job_manager.job_applier.pause"),
-    ):
-        success, _ = job_applier_with_params._handle_radio_question(question, radio_fields)
+    def test_skips_duplicate_vacancy(self, applier):
+        job_info = {"vacancy_id": "vac1", "job_title": "Same Job"}
+        company_vacancies = [{"vacancy_id": "vac1", "job_title": "Old Job"}]
+        applier._add_job_info_to_seen_companies(job_info, company_vacancies)
+        assert len(company_vacancies) == 1
 
-        # Check that the GPT answerer was called with the right parameters
-        job_applier_with_params.gpt_answerer.select_one_answer_from_options.assert_called_once_with(
-            "What is your preferred programming language?",
-            ["Option A", "Option B", "Option C", "No info"],
+
+# ---------------------------------------------------------------------------
+# _save_company
+# ---------------------------------------------------------------------------
+
+
+class TestSaveCompany:
+    def test_routes_success_to_success_file(self, applier_with_params):
+        vacancy = {"alternate_url": "https://hh.ru/1"}
+        with patch.object(applier_with_params, "_save_company_to_yaml") as mock_save:
+            applier_with_params._save_company(_make_job(), ("Success", "Применено"), vacancy)
+        mock_save.assert_called_once_with("success.yaml", applier_with_params.success_companies)
+
+    def test_routes_skip_to_skipped_file(self, applier_with_params):
+        vacancy = {"alternate_url": "https://hh.ru/1"}
+        with patch.object(applier_with_params, "_save_company_to_yaml") as mock_save:
+            applier_with_params._save_company(_make_job(), ("Skip", "Пропущено"), vacancy)
+        mock_save.assert_called_once_with("skipped.yaml", applier_with_params.skipped_companies)
+
+    def test_routes_error_to_failed_file(self, applier_with_params):
+        vacancy = {"alternate_url": "https://hh.ru/1"}
+        with patch.object(applier_with_params, "_save_company_to_yaml") as mock_save:
+            applier_with_params._save_company(_make_job(), ("Error", "Ошибка"), vacancy)
+        mock_save.assert_called_once_with("failed.yaml", applier_with_params.failed_companies)
+
+    def test_uses_company_name_as_key_when_no_company_id(self, applier_with_params):
+        vacancy = {"alternate_url": "https://hh.ru/1"}
+        with patch.object(applier_with_params, "_save_company_to_yaml"):
+            applier_with_params._save_company(_make_job(company_id=None), ("Success", ""), vacancy)
+        seen = applier_with_params.success_companies.get("resume123", {})
+        assert "TestCo" in seen
+
+    def test_appends_to_existing_company_entry(self, applier_with_params):
+        applier_with_params.success_companies = {
+            "resume123": {"comp1": [{"vacancy_id": "vac0", "job_title": "Old Dev"}]}
+        }
+        vacancy = {"alternate_url": "https://hh.ru/2"}
+        with patch.object(applier_with_params, "_save_company_to_yaml"):
+            applier_with_params._save_company(
+                _make_job(vacancy_id="vac2"), ("Success", ""), vacancy
+            )
+        seen = applier_with_params.success_companies["resume123"]["comp1"]
+        assert len(seen) == 2
+
+
+# ---------------------------------------------------------------------------
+# check_the_last_search_time
+# ---------------------------------------------------------------------------
+
+
+class TestCheckTheLastSearchTime:
+    def test_returns_true_when_no_last_run(self, applier_with_params):
+        applier_with_params.cache = {}
+        assert applier_with_params.check_the_last_search_time() is True
+
+    def test_returns_true_when_24h_elapsed(self, applier_with_params):
+        applier_with_params.cache = {"last_run": (datetime.now() - timedelta(hours=25)).isoformat()}
+        applier_with_params.previous_apply_number = 0
+        assert applier_with_params.check_the_last_search_time() is True
+
+    def test_returns_false_when_less_than_24h_and_no_previous_applies(self, applier_with_params):
+        applier_with_params.cache = {"last_run": (datetime.now() - timedelta(hours=12)).isoformat()}
+        applier_with_params.previous_apply_number = 0
+        assert applier_with_params.check_the_last_search_time() is False
+
+    def test_returns_true_when_previous_applies_exist(self, applier_with_params):
+        applier_with_params.cache = {"last_run": (datetime.now() - timedelta(hours=12)).isoformat()}
+        applier_with_params.previous_apply_number = 5
+        assert applier_with_params.check_the_last_search_time() is True
+
+
+# ---------------------------------------------------------------------------
+# _check_the_previous_apply_number
+# ---------------------------------------------------------------------------
+
+
+class TestCheckThePreviousApplyNumber:
+    def test_returns_zero_when_no_last_apply(self, applier):
+        applier.cache = {}
+        assert applier._check_the_previous_apply_number() == 0
+
+    def test_returns_count_when_apply_was_recent(self, applier):
+        applier.cache = {
+            "last_apply": (datetime.now() - timedelta(minutes=30)).isoformat(),
+            "success_applies_num": 7,
+        }
+        assert applier._check_the_previous_apply_number() == 7
+
+    def test_returns_zero_when_apply_was_long_ago(self, applier):
+        applier.cache = {
+            "last_apply": (datetime.now() - timedelta(hours=2)).isoformat(),
+            "success_applies_num": 7,
+        }
+        assert applier._check_the_previous_apply_number() == 0
+
+
+# ---------------------------------------------------------------------------
+# _update_skill_stat
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateSkillStat:
+    def test_adds_new_skills(self, applier_with_params):
+        applier_with_params.skill_stat = {}
+        with patch.object(applier_with_params, "_save_data_to_yaml"):
+            applier_with_params._update_skill_stat(["python", "sql"])
+        assert applier_with_params.skill_stat["python"] == 1
+        assert applier_with_params.skill_stat["sql"] == 1
+
+    def test_increments_existing_skills(self, applier_with_params):
+        applier_with_params.skill_stat = {"python": 3}
+        with patch.object(applier_with_params, "_save_data_to_yaml"):
+            applier_with_params._update_skill_stat(["python"])
+        assert applier_with_params.skill_stat["python"] == 4
+
+    def test_sorts_by_count_descending(self, applier_with_params):
+        applier_with_params.skill_stat = {"sql": 5, "python": 1}
+        with patch.object(applier_with_params, "_save_data_to_yaml"):
+            applier_with_params._update_skill_stat(["python"])
+        keys = list(applier_with_params.skill_stat.keys())
+        assert keys[0] == "sql"
+        assert keys[1] == "python"
+
+    def test_empty_skills_list_leaves_stat_unchanged(self, applier_with_params):
+        applier_with_params.skill_stat = {"python": 2}
+        with patch.object(applier_with_params, "_save_data_to_yaml"):
+            applier_with_params._update_skill_stat([])
+        assert applier_with_params.skill_stat["python"] == 2
+
+
+# ---------------------------------------------------------------------------
+# _define_output_file
+# ---------------------------------------------------------------------------
+
+
+class TestDefineOutputFile:
+    def test_returns_path_inside_output_folder(self):
+        result = str(JobApplier._define_output_file("test.yaml"))
+        assert "data_folder/output" in result
+        assert "test.yaml" in result
+
+
+# ---------------------------------------------------------------------------
+# _load_seen_job_descriptions_from_file
+# ---------------------------------------------------------------------------
+
+
+class TestLoadSeenJobDescriptionsFromFile:
+    def test_returns_empty_list_when_file_not_found(self, applier):
+        with patch("builtins.open", side_effect=FileNotFoundError):
+            result = applier._load_seen_job_descriptions_from_file("job_descriptions.txt")
+        assert result == []
+
+    def test_parses_single_job_block(self, applier):
+        content = (
+            "=" * 80 + "\n"
+            "Компания: ТестКо\n"
+            "Вакансия: Python Dev\n"
+            "ID вакансии: vac123\n"
+            "Оценка вакансии: 85\n"
+            "Навыки: python, sql\n"
+            "Ссылка: https://hh.ru/1\n"
+            "Сопроводительное письмо:\n\n"
+            "Уважаемые коллеги!\n\n"
+        )
+        with patch("builtins.open", mock_open(read_data=content)):
+            result = applier._load_seen_job_descriptions_from_file("job_descriptions.txt")
+
+        assert len(result) == 1
+        assert result[0]["company_name"] == "ТестКо"
+        assert result[0]["job_title"] == "Python Dev"
+        assert result[0]["vacancy_id"] == "vac123"
+        assert result[0]["job_score"] == 85
+        assert result[0]["link"] == "https://hh.ru/1"
+
+    def test_parses_skills_into_list(self, applier):
+        content = (
+            "=" * 80 + "\n"
+            "Компания: TestCo\n"
+            "Вакансия: Dev\n"
+            "ID вакансии: v1\n"
+            "Оценка вакансии: 70\n"
+            "Навыки: python, docker, kubernetes\n"
+            "Ссылка: https://hh.ru/1\n"
+            "Сопроводительное письмо:\n\n"
+        )
+        with patch("builtins.open", mock_open(read_data=content)):
+            result = applier._load_seen_job_descriptions_from_file("job_descriptions.txt")
+
+        assert result[0]["skills"] == ["python", "docker", "kubernetes"]
+
+    def test_skips_empty_blocks(self, applier):
+        content = "=" * 80 + "\n" + "=" * 80 + "\n"
+        with patch("builtins.open", mock_open(read_data=content)):
+            result = applier._load_seen_job_descriptions_from_file("job_descriptions.txt")
+        assert result == []
+
+    def test_handles_invalid_job_score(self, applier):
+        content = (
+            "=" * 80 + "\n"
+            "Компания: TestCo\n"
+            "Вакансия: Dev\n"
+            "ID вакансии: v1\n"
+            "Оценка вакансии: не число\n"
+            "Навыки: python\n"
+            "Ссылка: https://hh.ru/1\n"
+            "Сопроводительное письмо:\n\n"
+        )
+        with patch("builtins.open", mock_open(read_data=content)):
+            result = applier._load_seen_job_descriptions_from_file("job_descriptions.txt")
+        assert result[0]["job_score"] == 0
+
+
+# ---------------------------------------------------------------------------
+# scrape_vacancy
+# ---------------------------------------------------------------------------
+
+
+class TestScrapeVacancy:
+    @pytest.mark.asyncio
+    async def test_builds_job_with_all_fields(self, applier):
+        applier.manager.get_vacancy_full_info = AsyncMock(
+            return_value={"description": "Текст", "skills": "Python"}
+        )
+        result = await applier.scrape_vacancy(_make_vacancy())
+
+        assert result["job_title"] == "Python Dev"
+        assert result["vacancy_id"] == "vac1"
+        assert result["company_id"] == "comp1"
+        assert result["company_name"] == "TestCo"
+        assert result["description"] == "Текст"
+
+    @pytest.mark.asyncio
+    async def test_handles_missing_employer(self, applier):
+        applier.manager.get_vacancy_full_info = AsyncMock(return_value={})
+        vacancy = {
+            "name": "Python Dev",
+            "id": "vac1",
+            "employer": None,
+            "alternate_url": "https://hh.ru/1",
+        }
+        result = await applier.scrape_vacancy(vacancy)
+
+        assert result["company_name"] == "Unknown"
+        assert result["company_id"] is None
+
+    @pytest.mark.asyncio
+    async def test_continues_when_full_info_fails(self, applier):
+        applier.manager.get_vacancy_full_info = AsyncMock(side_effect=Exception("Ошибка сети"))
+        result = await applier.scrape_vacancy(_make_vacancy())
+
+        assert result["job_title"] == "Python Dev"
+        assert result["company_name"] == "TestCo"
+
+
+# ---------------------------------------------------------------------------
+# apply_job
+# ---------------------------------------------------------------------------
+
+
+class TestApplyJob:
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", False)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", False)
+    async def test_uses_fixed_cover_letter_without_calling_llm(self, applier_with_params):
+        applier_with_params.fixed_cover_letter = "Готовое письмо"
+        applier_with_params.manager.apply_to_vacancy = AsyncMock(return_value=("Success", ""))
+
+        result = await applier_with_params.apply_job(
+            _make_vacancy(), "TestCo", "Python Dev", _make_job(), {"score": 80}
         )
 
-        # Check that the correct radio button was clicked
-        radio_fields[0].click.assert_called_once()
-        assert success is True
+        assert result == ("Success", "")
+        applier_with_params.gpt_answerer.write_cover_letter.assert_not_called()
 
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", False)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", False)
+    async def test_generates_cover_letter_when_no_fixed(self, applier_with_params):
+        applier_with_params.fixed_cover_letter = None
+        applier_with_params.gpt_answerer.write_cover_letter.return_value = "Письмо от LLM"
+        applier_with_params.resume_component.deanonymize_personal_information.return_value = (
+            "Письмо от LLM"
+        )
+        applier_with_params.manager.apply_to_vacancy = AsyncMock(return_value=("Success", ""))
 
-def test_handle_checkbox_question(job_applier_with_params, mock_driver):
-    """Test that _handle_checkbox_question correctly handles checkbox questions"""
-    # Setup mocks
-    job_applier_with_params.driver = mock_driver
+        with patch.object(applier_with_params, "_save_job_description"):
+            result = await applier_with_params.apply_job(
+                _make_vacancy(), "TestCo", "Python Dev", _make_job(), {"score": 80}
+            )
 
-    # Create mock question and checkbox fields
-    question = MagicMock()
-    question.text = "Which programming languages do you know?"
+        applier_with_params.gpt_answerer.write_cover_letter.assert_called_once()
+        assert result == ("Success", "")
 
-    checkbox_fields = [MagicMock(), MagicMock(), MagicMock()]
-    for i, field in enumerate(checkbox_fields):
-        parent = MagicMock()
-        parent.text = f"Option {chr(65 + i)}"  # "Option A", "Option B", "Option C"
-        field.find_element.return_value = parent
-
-    # Test successful answer selection
-    with (
-        patch("src.job_manager.job_applier.scroll_slow"),
-        patch("src.job_manager.job_applier.pause"),
-    ):
-        success, _ = job_applier_with_params._handle_checkbox_question(question, checkbox_fields)
-
-        # Check that the GPT answerer was called with the right parameters
-        job_applier_with_params.gpt_answerer.select_many_answers_from_options.assert_called_once_with(
-            "Which programming languages do you know?",
-            ["Option A", "Option B", "Option C", "No info"],
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", True)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", False)
+    async def test_search_mode_skips_and_updates_skills(self, applier_with_params):
+        applier_with_params.fixed_cover_letter = None
+        applier_with_params.gpt_answerer.write_cover_letter.return_value = "Письмо"
+        applier_with_params.resume_component.deanonymize_personal_information.return_value = (
+            "Письмо"
         )
 
-        # Check that the correct checkboxes were clicked
-        checkbox_fields[0].click.assert_called_once()
-        checkbox_fields[2].click.assert_called_once()
-        checkbox_fields[1].click.assert_not_called()
-        assert success is True
+        with (
+            patch.object(applier_with_params, "_save_job_description"),
+            patch.object(applier_with_params, "_update_skill_stat") as mock_update,
+        ):
+            result = await applier_with_params.apply_job(
+                _make_vacancy(), "TestCo", "Python Dev", _make_job(), {"score": 80}
+            )
 
+        assert result == ("Skip", "SEARCH_MODE")
+        mock_update.assert_called_once()
 
-def test_handle_textbox_question_no_existing_answer(job_applier_with_params, mock_driver):
-    """Test that _handle_textbox_question correctly handles textbox questions"""
-    # Setup mocks
-    job_applier_with_params.driver = mock_driver
-    job_applier_with_params.seen_answers = []
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", False)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", True)
+    async def test_skill_stat_mode_skips_and_updates_skills(self, applier_with_params):
+        applier_with_params.fixed_cover_letter = None
+        applier_with_params.gpt_answerer.extract_skills_from_vacancy.return_value = ["docker"]
 
-    # Create mock question and text field
-    question = MagicMock()
-    question.text = "Tell us about your experience."
-    text_field = MagicMock()
+        with patch.object(applier_with_params, "_update_skill_stat") as mock_update:
+            result = await applier_with_params.apply_job(
+                _make_vacancy(),
+                "TestCo",
+                "Python Dev",
+                _make_job(skills="python"),
+                {"score": 80},
+            )
 
-    # Test with no existing answer
-    with (
-        patch("src.job_manager.job_applier.scroll_slow"),
-        patch("src.job_manager.job_applier.pause"),
-        patch("src.job_manager.job_applier.enter_text") as mock_enter_text,
-        patch.object(job_applier_with_params, "_save_data_to_yaml") as mock_save,
-        patch.object(
-            job_applier_with_params.resume_component,
-            "deanonymize_personal_information",
-            return_value="This is my answer",
-        ),
-    ):
-        success, _ = job_applier_with_params._handle_textbox_question(question, text_field)
+        assert result == ("Skip", "SKILL_STAT_MODE")
+        mock_update.assert_called_once()
+        called_skills = mock_update.call_args[0][0]
+        assert "python" in called_skills
+        assert "docker" in called_skills
 
-        # Check that the GPT answerer was called with the right parameters
-        job_applier_with_params.gpt_answerer.answer_question_textual_wide_range.assert_called_once_with(
-            "Tell us about your experience."
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", False)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", False)
+    async def test_returns_error_on_exception(self, applier_with_params):
+        applier_with_params.fixed_cover_letter = None
+        applier_with_params.gpt_answerer.write_cover_letter.side_effect = Exception("LLM упал")
+
+        result = await applier_with_params.apply_job(
+            _make_vacancy(), "TestCo", "Python Dev", _make_job(), {"score": 80}
         )
 
-        # Check that the answer was entered in the text field
-        mock_enter_text.assert_called_once_with(text_field, "This is my answer")
-
-        # Check that the answer was saved
-        assert len(job_applier_with_params.seen_answers) == 1
-        assert (
-            job_applier_with_params.seen_answers[0]["question"] == "Tell us about your experience."
-        )
-        assert job_applier_with_params.seen_answers[0]["answer"] == "This is my answer"
-        mock_save.assert_called_once()
-        assert success is True
+        assert result[0] == "Error"
+        assert "LLM упал" in result[1]
 
 
-def test_handle_textbox_question_with_existing_answer(job_applier_with_params, mock_driver):
-    """Test that _handle_textbox_question correctly handles textbox questions"""
-    # Setup mocks
-    job_applier_with_params.driver = mock_driver
-    job_applier_with_params.seen_answers = []
+# ---------------------------------------------------------------------------
+# send_repsonse
+# ---------------------------------------------------------------------------
 
-    # Create mock question and text field
-    question = MagicMock()
-    question.text = "tell us about your experience"
-    text_field = MagicMock()
 
-    # Test with existing answer
-    job_applier_with_params.seen_answers = [
-        {"question": "tell us about your experience", "answer": "existing answer"}
-    ]
+class TestSendResponse:
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", False)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", False)
+    @patch("src.job_manager.job_applier.MONKEY_MODE", False)
+    @patch("src.job_manager.job_applier.time")
+    @patch("src.job_manager.job_applier.sleep")
+    async def test_skips_already_applied_vacancy(self, mock_sleep, mock_time, applier_with_params):
+        mock_time.time.return_value = 0
+        applier_with_params.success_companies = {
+            "resume123": {"comp1": [{"vacancy_id": "vac1", "job_title": "Python Dev"}]}
+        }
+        applier_with_params.apply_once_at_company = True
 
-    with (
-        patch("src.job_manager.job_applier.scroll_slow"),
-        patch("src.job_manager.job_applier.pause"),
-        patch("src.job_manager.job_applier.enter_text") as mock_enter_text,
-        patch.object(job_applier_with_params, "_save_data_to_yaml") as mock_save,
-        patch.object(
-            job_applier_with_params.resume_component,
-            "deanonymize_personal_information",
-            return_value="existing answer",
-        ),
+        with (
+            patch.object(
+                applier_with_params, "scrape_vacancy", new=AsyncMock(return_value=_make_job())
+            ),
+            patch.object(applier_with_params, "_save_company"),
+            patch("src.job_manager.job_applier.pause"),
+        ):
+            result = await applier_with_params.send_repsonse(_make_vacancy())
+
+        assert result == "Skip"
+
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", False)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", False)
+    @patch("src.job_manager.job_applier.MONKEY_MODE", True)
+    @patch("src.job_manager.job_applier.time")
+    @patch("src.job_manager.job_applier.sleep")
+    async def test_applies_successfully_in_monkey_mode(
+        self, mock_sleep, mock_time, applier_with_params
     ):
-        success, _ = job_applier_with_params._handle_textbox_question(question, text_field)
+        mock_time.time.return_value = 0
+        applier_with_params.success_companies = {"resume123": {}}
+        applier_with_params.manager.apply_to_vacancy = AsyncMock(return_value=("Success", ""))
+        applier_with_params.fixed_cover_letter = "Письмо"
 
-        # Check that the GPT answerer was not called (existing answer used)
-        job_applier_with_params.gpt_answerer.answer_question_textual_wide_range.call_count == 1
-
-        # Check that the existing answer was entered in the text field
-        mock_enter_text.assert_called_once_with(text_field, "existing answer")
-
-        # Check that no new answer was saved
-        assert len(job_applier_with_params.seen_answers) == 1
-        mock_save.assert_not_called()
-        assert success is True
-
-
-def test_apply_job(job_applier_with_params):
-    """Test that apply_job method correctly applies to jobs"""
-    # Mock API response for successful application
-    job_applier_with_params.api.api_request.return_value = {}
-
-    # Create test data
-    vacancy = {
-        "id": "123456",
-        "alternate_url": "https://hh.ru/vacancy/123456",
-        "name": "Python Developer",
-    }
-    company_name = "Test Company"
-    job_title = "Python Developer"
-    job = {"title": job_title, "company_name": company_name}
-
-    # Store the original fixed_cover_letter
-    original_fixed_cover_letter = job_applier_with_params.fixed_cover_letter
-
-    # Clear fixed_cover_letter to test with mock GPT cover letter
-    job_applier_with_params.fixed_cover_letter = None
-
-    # Test successful application
-    with (
-        patch.object(job_applier_with_params, "_save_cover_letter"),
-        patch.object(job_applier_with_params, "_save_company"),
-    ):
-        result, _ = job_applier_with_params.apply_job(vacancy, company_name, job_title, job)
+        with (
+            patch.object(
+                applier_with_params, "scrape_vacancy", new=AsyncMock(return_value=_make_job())
+            ),
+            patch.object(applier_with_params, "_save_company"),
+        ):
+            result = await applier_with_params.send_repsonse(_make_vacancy())
 
         assert result == "Success"
+        assert applier_with_params.success_applies_num == 1
 
-    # Restore original fixed_cover_letter
-    job_applier_with_params.fixed_cover_letter = original_fixed_cover_letter
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", False)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", False)
+    @patch("src.job_manager.job_applier.MONKEY_MODE", False)
+    @patch("src.job_manager.job_applier.time")
+    @patch("src.job_manager.job_applier.sleep")
+    async def test_skips_uninteresting_vacancy(self, mock_sleep, mock_time, applier_with_params):
+        mock_time.time.return_value = 0
+        applier_with_params.success_companies = {"resume123": {}}
+        applier_with_params.gpt_answerer.job_is_interesting.return_value = {
+            "score": 30,
+            "reasoning": "Не подходит",
+        }
+        applier_with_params.gpt_answerer.set_job = MagicMock()
 
-    # Test application with API error
-    job_applier_with_params.api.api_request.reset_mock()
-    job_applier_with_params.api.api_request.return_value = {"errors": [{"value": "limit_exceeded"}]}
+        with (
+            patch.object(
+                applier_with_params, "scrape_vacancy", new=AsyncMock(return_value=_make_job())
+            ),
+            patch.object(applier_with_params, "_save_company"),
+        ):
+            result = await applier_with_params.send_repsonse(_make_vacancy())
 
-    with (
-        patch.object(job_applier_with_params, "_save_cover_letter"),
-        patch.object(job_applier_with_params, "_save_company"),
-        patch("src.job_manager.job_applier.MONKEY_MODE", return_value=False),
-        patch("src.job_manager.job_applier.RESUME_MODE", return_value=False),
-        patch("src.job_manager.job_applier.SKILL_STAT_MODE", return_value=False),
-        patch("src.job_manager.job_applier.SEARCH_MODE", return_value=False),
+        assert result == "Skip"
+
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", False)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", False)
+    @patch("src.job_manager.job_applier.MONKEY_MODE", True)
+    @patch("src.job_manager.job_applier.time")
+    @patch("src.job_manager.job_applier.sleep")
+    async def test_returns_limit_when_max_applies_reached(
+        self, mock_sleep, mock_time, applier_with_params
     ):
-        result, _ = job_applier_with_params.apply_job(vacancy, company_name, job_title, job)
+        mock_time.time.return_value = 0
+        applier_with_params.success_companies = {"resume123": {}}
+        applier_with_params.success_applies_num = 10
+        applier_with_params.max_applies_num = 10
+        applier_with_params.manager.apply_to_vacancy = AsyncMock(return_value=("Success", ""))
+        applier_with_params.fixed_cover_letter = "Письмо"
+
+        with (
+            patch.object(
+                applier_with_params, "scrape_vacancy", new=AsyncMock(return_value=_make_job())
+            ),
+            patch.object(applier_with_params, "_save_company"),
+        ):
+            result = await applier_with_params.send_repsonse(_make_vacancy())
 
         assert result == "Limit"
 
-
-def test_send_response(job_applier_with_params):
-    """Test that send_response method handles job responses correctly"""
-    # Mock methods that are called by send_response
-    with (
-        patch.object(job_applier_with_params, "scrape_vacancy") as mock_scrape,
-        patch.object(
-            job_applier_with_params, "_is_blacklisted", return_value=False
-        ) as mock_blacklist,
-        patch.object(
-            job_applier_with_params,
-            "_is_already_applied_to_job_or_company",
-            return_value=(False, ""),
-        ) as mock_is_applied,
-        patch.object(
-            job_applier_with_params, "apply_job", return_value=("Success", "")
-        ) as mock_apply,
-        patch.object(job_applier_with_params, "_save_company", return_value=None),
-        patch.object(job_applier_with_params, "_write_the_last_search_time", return_value=None),
-        patch.object(job_applier_with_params, "_update_skill_stat", return_value=None),
-        patch("src.job_manager.job_applier.time", return_value=MagicMock()),
-        patch("src.job_manager.job_applier.pause"),  #
-        patch("src.job_manager.job_applier.sleep"),
-        patch("src.job_manager.job_applier.MONKEY_MODE", return_value=False),
-        patch("src.job_manager.job_applier.RESUME_MODE", return_value=False),
-        patch("src.job_manager.job_applier.SKILL_STAT_MODE", return_value=False),
-        patch("src.job_manager.job_applier.SEARCH_MODE", return_value=False),
+    @pytest.mark.asyncio
+    @patch("src.job_manager.job_applier.SEARCH_MODE", False)
+    @patch("src.job_manager.job_applier.SKILL_STAT_MODE", False)
+    @patch("src.job_manager.job_applier.MONKEY_MODE", True)
+    @patch("src.job_manager.job_applier.time")
+    @patch("src.job_manager.job_applier.sleep")
+    async def test_returns_limit_when_total_applies_reached(
+        self, mock_sleep, mock_time, applier_with_params
     ):
-        # Setup test data
-        vacancy = {
-            "id": "123456",
-            "name": "Python Developer",
-            "alternate_url": "https://hh.ru/vacancy/123456",
-            "employer": {"name": "Test Company"},
-        }
+        mock_time.time.return_value = 0
+        applier_with_params.success_companies = {"resume123": {}}
+        applier_with_params.total_applies_num = 1500
+        applier_with_params.max_total_applies_num = 1500
+        applier_with_params.manager.apply_to_vacancy = AsyncMock(return_value=("Success", ""))
+        applier_with_params.fixed_cover_letter = "Письмо"
 
-        mock_scrape.return_value = {
-            "job_title": "Python Developer",
-            "company_name": "Test Company",
-            "has_test_task": False,
-            "company_id": "654321",
-            "vacancy_id": "123456",
-        }
+        with (
+            patch.object(
+                applier_with_params, "scrape_vacancy", new=AsyncMock(return_value=_make_job())
+            ),
+            patch.object(applier_with_params, "_save_company"),
+        ):
+            result = await applier_with_params.send_repsonse(_make_vacancy())
 
-        # Test successful job application
-        result = job_applier_with_params.send_repsonse(vacancy)
-        # Check that methods were called correctly
-        mock_scrape.assert_called_once()
-        mock_blacklist.assert_called_once()
-        mock_is_applied.assert_called_once()
-        job_applier_with_params.gpt_answerer.set_job.assert_called_once()
-        job_applier_with_params.gpt_answerer.job_is_interesting.assert_called_once()
-        mock_apply.assert_called_once()
-
-        # Check that the success count was incremented
-        assert job_applier_with_params.success_applies_num == 1
-        assert result == "Success"
-
-    # Test with blacklisted company
-    job_applier_with_params.applies_num = 0
-    with (
-        patch.object(job_applier_with_params, "scrape_vacancy") as mock_scrape,
-        patch.object(job_applier_with_params, "_is_blacklisted", return_value=True),
-        patch.object(job_applier_with_params, "_save_company") as mock_save_company,
-        patch("src.job_manager.job_applier.time.time", return_value=100),
-        patch("src.job_manager.job_applier.pause"),
-        patch("src.job_manager.job_applier.sleep"),
-        patch("src.job_manager.job_applier.MONKEY_MODE", return_value=False),
-        patch("src.job_manager.job_applier.RESUME_MODE", return_value=False),
-        patch("src.job_manager.job_applier.SKILL_STAT_MODE", return_value=False),
-        patch("src.job_manager.job_applier.SEARCH_MODE", return_value=False),
-    ):
-        vacancy = {
-            "id": "123456",
-            "name": "Python Developer",
-            "alternate_url": "https://hh.ru/vacancy/123456",
-            "employer": {"name": "Blacklisted Company"},
-        }
-
-        mock_scrape.return_value = {
-            "job_title": "Python Developer",
-            "company_name": "Blacklisted Company",
-            "has_test_task": False,
-        }
-
-        result = job_applier_with_params.send_repsonse(vacancy)
-
-        # Company should be saved with Skip status
-        mock_save_company.assert_called_once()
-
-        # Check that no success count was incremented
-        assert job_applier_with_params.applies_num == 1
-        assert job_applier_with_params.success_applies_num == 1  # Unchanged from previous test
-        assert result == "Skip"
-
-
-def test_start_applying(job_applier_with_params):
-    """Test that start_applying method correctly manages the job application process"""
-    # Mock check_the_last_search_time to return True (valid to search)
-    with (
-        patch.object(job_applier_with_params, "check_the_last_search_time", return_value=True),
-        patch.object(job_applier_with_params, "search_vacancies") as mock_search,
-        patch.object(job_applier_with_params, "send_repsonse", return_value="OK") as mock_send,
-        patch.object(
-            job_applier_with_params, "resume_improvement_recommendations"
-        ) as mock_recommendations,
-        patch.object(job_applier_with_params, "send_report") as mock_report,
-        patch.object(job_applier_with_params, "_write_the_last_search_time") as mock_write_time,
-        patch("src.job_manager.job_applier.MONKEY_MODE", return_value=False),
-        patch("src.job_manager.job_applier.RESUME_MODE", return_value=False),
-        patch("src.job_manager.job_applier.SKILL_STAT_MODE", return_value=False),
-        patch("src.job_manager.job_applier.SEARCH_MODE", return_value=False),
-    ):
-        job_applier_with_params.success_applies_num = 2
-        job_applier_with_params.previous_apply_number = 1
-
-        # Mock search results with three vacancies on page 0 and none on page 1
-        mock_search.side_effect = [[{"id": f"{i}"} for i in range(3)], []]
-
-        # Start applying to jobs
-        job_applier_with_params.start_applying()
-
-        # Check that the search was called twice (for page 0 and page 1)
-        assert mock_search.call_count == 2
-
-        # Check that send_response was called for each vacancy
-        assert mock_send.call_count == 3
-
-        # Check that other methods were called
-        mock_recommendations.assert_called_once()
-        mock_report.assert_called_once()
-
-        # If there was a successful application, write_the_last_search_time should be called
-        if job_applier_with_params.success_applies_num > 0:
-            mock_write_time.assert_called()
+        assert result == "Limit"
