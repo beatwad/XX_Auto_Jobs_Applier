@@ -9,7 +9,7 @@ class SearchCustomizer:
         self.manager = manager
         self.resume = None
         self.resume_id = None
-        # Raw search config parameters (same shape as YAML / Pydantic model_dump()).
+        # Параметры поиска в сыром виде (аналог YAML / Pydantic model_dump()).
         self.search_params: Dict[str, Any] = {}
 
     def set_search_parameters(self, search_params: Dict[str, Any]) -> None:

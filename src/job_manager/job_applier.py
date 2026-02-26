@@ -126,7 +126,7 @@ class JobApplier:
         job["job_title"] = vacancy["name"]
         job["vacancy_id"] = vacancy["id"]
 
-        # Safe access to optional fields
+        # Безопасный доступ к необязательным полям
         if "employer" in vacancy and vacancy["employer"]:
             job["company_id"] = vacancy["employer"].get("id")
             job["company_name"] = vacancy["employer"]["name"]
@@ -134,12 +134,12 @@ class JobApplier:
             job["company_id"] = None
             job["company_name"] = "Unknown"
 
-        # Fetch full details via Playwright
+        # Получаем полную информацию через Playwright
         try:
             full_info = await self.manager.get_vacancy_full_info(vacancy["alternate_url"])
             job = {**job, **full_info}
         except Exception as e:
-            logger.error(f"Failed to scrape vacancy details: {e}")
+            logger.error(f"Ошибка при сборе данных вакансии: {e}")
         job = Job(**job).model_dump()
         return job
 
@@ -766,7 +766,7 @@ if __name__ == "__main__":
     from src.llm.llm_manager import GPTAnswerer
     from src.views.config import SearchConfig, Secrets
 
-    TEST_VACANCY_URL = "https://hh.ru/vacancy/130698854"  # Replace with actual vacancy URL
+    TEST_VACANCY_URL = "https://hh.ru/vacancy/130698854"  # Замените на реальный URL вакансии
 
     async def _test_apply():
         secrets_data = load_yaml_file(SECRETS_FILE)
@@ -795,7 +795,7 @@ if __name__ == "__main__":
             result, reason = await manager.apply_to_vacancy(
                 TEST_VACANCY_URL, cover_letter, gpt_answerer, resume_component
             )
-            logger.info(f"Apply result: {result} — {reason}")
+            logger.info(f"Результат отклика: {result} — {reason}")
             if result == "Error":
                 input("Нажмите Enter для выхода...")
         except Exception:

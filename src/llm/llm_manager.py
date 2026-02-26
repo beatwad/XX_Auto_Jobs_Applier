@@ -29,7 +29,7 @@ from src.utils.json_to_readable import transform_search_config_data, transform_v
 
 load_dotenv()
 
-# Load config
+# Загрузка конфига
 config = load_app_config()
 LLM_MODEL = config.get("LLM_MODEL", "gpt-5-nano")
 LLM_MODEL_TYPE = config.get("LLM_MODEL_TYPE", "openai")
@@ -73,7 +73,7 @@ class OpenAIModel(AIModel):
                     presence_penalty=0,
                     frequency_penalty=0,
                     timeout=60,
-                    # Try to minimize reasoning if the model supports it.
+                    # Минимизируем рассуждения, если модель это поддерживает.
                     reasoning_effort="low",
                 )
                 response = model.invoke(prompt_messages)
@@ -439,7 +439,7 @@ class LoggerChatModel:
                     response_metadata = llmresult.response_metadata
                     id_ = llmresult.id
 
-                    # Handle the case where token_usage might not be in response_metadata
+                    # Обрабатываем случай, когда token_usage отсутствует в response_metadata
                     if "token_usage" in response_metadata:
                         token_usage = response_metadata["token_usage"]
                         input_tokens = token_usage.prompt_tokens
@@ -467,7 +467,7 @@ class LoggerChatModel:
                 except Exception:
                     tb_str = traceback.format_exc()
                     logger.error(f"Ошибка при обработке результата без usage_metadata: {tb_str}")
-                    # Create a minimal parsed result with defaults
+                    # Создаем минимальный результат со значениями по умолчанию
                     parsed_result = {
                         "content": llmresult.content if hasattr(llmresult, "content") else "",
                         "response_metadata": {"model_name": "unknown", "finish_reason": "unknown"},
@@ -799,19 +799,19 @@ if __name__ == "__main__":
     try:
         openai_model = OpenAIModel(api_key=llm_api_key, llm_model=LLM_MODEL, llm_proxy=llm_proxy)
 
-        # Create a simple test prompt
+        # Создаем простой тестовый промпт
         template = ChatPromptTemplate.from_messages(
             [("user", "Hello! Respond with 'Test passed' if you receive this.")]
         )
 
-        # Invoke generates a PromptValue
+        # Invoke генерирует PromptValue
         prompt_value = template.invoke({})
 
-        print("Invoking OpenAIModel...")
+        print("Вызываем OpenAIModel...")
         response = openai_model.invoke(prompt_value)
 
-        print(f"Response content: {response.content}")
+        print(f"Содержимое ответа: {response.content}")
 
     except Exception as e:
-        print(f"Test failed with error: {e}")
+        print(f"Тест завершился с ошибкой: {e}")
         traceback.print_exc()

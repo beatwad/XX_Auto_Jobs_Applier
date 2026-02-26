@@ -14,8 +14,6 @@ from src.logger_config import logger
 from src.views.config import SearchConfig, Secrets
 from src.utils.utils import load_yaml_file
 
-
-# TODO: translate all comments and logs to Russian
 # TODO: actualize tests
 
 
@@ -42,7 +40,6 @@ class ConfigValidator:
                         parameters[key] = None
 
             # Валидация параметров с помощью Pydantic
-            print(f"parameters: {parameters}")
             config = SearchConfig(**parameters)
             logger.debug("Проверка параметров завершена успешно.")
             return config.model_dump()

@@ -141,7 +141,7 @@ class ResumeScraper:
                 self.resume_info["personal_information"][key] = value
 
     def anonymize_text(self, input_: str) -> str:
-        """If some key words are found in resume text - anonymize them"""
+        """Анонимизировать текст резюме: заменить персональные данные на данные-пустышки"""
         if not ANONYMIZE:
             return input_
         sex = self.resume_info["personal_information"].get("sex")
