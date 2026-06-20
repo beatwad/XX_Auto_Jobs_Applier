@@ -131,7 +131,7 @@ class ResumeScraper:
         if not ANONYMIZE:
             return
         sex = self.personal_information.get("sex")
-        if sex.lower() == "женский":
+        if (sex or "").lower() == "женский":
             dummy_pesonal_info = DUMMY_PERSONAL_INFO_FEMALE
         else:
             dummy_pesonal_info = DUMMY_PERSONAL_INFO_MALE
@@ -145,7 +145,7 @@ class ResumeScraper:
         if not ANONYMIZE:
             return input_
         sex = self.resume_info["personal_information"].get("sex")
-        if sex.lower() == "женский":
+        if (sex or "").lower() == "женский":
             dummy_pesonal_info = DUMMY_PERSONAL_INFO_FEMALE
         else:
             dummy_pesonal_info = DUMMY_PERSONAL_INFO_MALE
@@ -182,7 +182,7 @@ class ResumeScraper:
         if not ANONYMIZE:
             return output
         sex = self.personal_information.get("sex")
-        if sex.lower() == "женский":
+        if (sex or "").lower() == "женский":
             dummy_pesonal_info = DUMMY_PERSONAL_INFO_FEMALE
         else:
             dummy_pesonal_info = DUMMY_PERSONAL_INFO_MALE

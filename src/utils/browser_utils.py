@@ -7,13 +7,14 @@ from typing import Any, Dict, List, Optional
 
 from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
-from src.constants import BROWSER_STORAGE_STATE
+from src.constants import BROWSER_STORAGE_STATE, DEBUG_DIR
 from src.logger_config import logger
 from src.utils.utils import load_app_config
 
 # Load config
 config = load_app_config()
 HEADLESS_MODE = config.get("HEADLESS_MODE", False)
+DEBUG_MODE = config.get("DEBUG_MODE", False)
 
 
 def ensure_playwright_profile() -> str:
@@ -104,6 +105,29 @@ async def save_browser_session(context: BrowserContext) -> None:
         logger.error(f"Failed to save Playwright session: {e}")
 
 
+async def debug_capture(page: Page, label: str) -> None:
+    """Сохраняет скриншот и HTML страницы в data_folder/debug/ для разбора ошибок.
+
+    Работает только при DEBUG_MODE=True. Файлы помечаются временной меткой, поэтому
+    каждая ошибка получает свою пару файлов. Скриншот (.png) и разметку (.html) можно
+    передать для диагностики проблем с селекторами.
+    """
+    if not DEBUG_MODE:
+        return
+    try:
+        os.makedirs(DEBUG_DIR, exist_ok=True)
+        timestamp = time.strftime("%Y%m%d_%H%M%S")
+        safe_label = re.sub(r"[^\w\-]", "_", label)[:60]
+        base = os.path.join(DEBUG_DIR, f"{timestamp}_{safe_label}")
+        await page.screenshot(path=f"{base}.png", full_page=True)
+        html = await page.content()
+        with open(f"{base}.html", "w", encoding="utf-8") as f:
+            f.write(html)
+        logger.debug(f"Отладочный снимок сохранён: {base}.png / .html")
+    except Exception as e:
+        logger.debug(f"Не удалось сохранить отладочный снимок: {e}")
+
+
 async def safe_click(
     page: Page,
     selector: str,
@@ -176,6 +200,7 @@ async def safe_click(
     except Exception as e:
         if not supress_warnings:
             logger.warning(f"Failed to click element '{selector}': {e}")
+        await debug_capture(page, f"safe_click_{selector}")
         return False
 
 
@@ -237,6 +262,7 @@ async def safe_fill(
     except Exception as e:
         if not supress_warnings:
             logger.warning(f"Failed to fill element '{selector}': {e}")
+        await debug_capture(page, f"safe_fill_{selector}")
         return False
 
 

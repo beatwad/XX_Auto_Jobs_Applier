@@ -1,12 +1,11 @@
 import os
-import random
 import textwrap
 import time
 import traceback
 from abc import ABC, abstractmethod
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple
 
 import httpx
 import yaml
@@ -16,8 +15,6 @@ from langchain_core.messages.ai import AIMessage
 from langchain_core.output_parsers import StrOutputParser, PydanticOutputParser
 from langchain_core.prompt_values import StringPromptValue
 from langchain_core.prompts import ChatPromptTemplate
-from langchain_openai import ChatOpenAI
-from langchain_google_genai import ChatGoogleGenerativeAI, HarmBlockThreshold, HarmCategory
 from Levenshtein import distance
 
 import src.llm.prompts as prompts
@@ -42,106 +39,101 @@ class AIModel(ABC):
         pass
 
 
-class OpenAIModel(AIModel):
-    """Получить доступ к модели OpenAI"""
+class GeminiModel(AIModel):
+    """Get access to Gemini model"""
 
-    def __init__(self, api_key: str, llm_model: str, llm_proxy: Union[str, None] = None) -> None:
+    def __init__(self, api_key: str, llm_model: str, llm_proxy: str = None) -> None:
+        from google.genai import types
+        from langchain_google_genai import ChatGoogleGenerativeAI, HarmBlockThreshold, HarmCategory
+
+        # os.environ["https_proxy"] = llm_proxy
+        http_options = types.HttpOptions(
+            client_args={"proxy": llm_proxy}, async_client_args={"proxy": llm_proxy}
+        )
+        self.google_api_key = api_key
+        self.model = ChatGoogleGenerativeAI(
+            model=llm_model,
+            google_api_key=self.google_api_key,
+            temperature=TEMPERATURE,
+            thinking_level="minimal",
+            safety_settings={
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+            },
+            http_options=http_options,
+        )
+
+    def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
+        logger.info("Got access to model via Gemini API")
+        prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
+        # randomly select one proxy after another until LLM request succeeds
+        response = self.model.invoke(prompt_messages)
+        return response
+
+
+class OpenAIModel(AIModel):
+    """Get access to OpenAI model"""
+
+    def __init__(self, api_key: str, llm_model: str, llm_proxy: str = None) -> None:
+        from langchain_openai import ChatOpenAI
+
+        if llm_proxy:
+            http_client = httpx.Client(proxy=llm_proxy)
+        else:
+            http_client = None
         self.llm_proxy = llm_proxy
         self.model_name = llm_model
         self.openai_api_key = api_key
+        is_reasoning_model = (
+            "o1" in self.model_name
+            or "o3" in self.model_name
+            or "o4" in self.model_name
+            or "gpt-5" in self.model_name
+        )
+        extra = {"reasoning_effort": "minimal"} if is_reasoning_model else {}
+        self.model = ChatOpenAI(
+            model_name=self.model_name,
+            openai_api_key=self.openai_api_key,
+            http_client=http_client,
+            temperature=1 if is_reasoning_model or "gpt-5" in self.model_name else TEMPERATURE,
+            presence_penalty=0,
+            frequency_penalty=0,
+            timeout=60,
+            **extra,
+        )
 
     def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
-        logger.info("Получен доступ к модели через OpenAI API")
+        logger.info("Got access to model via OpenAI API")
         prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
-        # случайно выбираем одну прокси за другой, пока запрос к LLM не пройдет
-        llm_proxies = self.llm_proxy.copy()
-        random.shuffle(llm_proxies)
-
-        for proxy in llm_proxies:
-            try:
-                if proxy:
-                    http_client = httpx.Client(proxy=proxy)
-                else:
-                    http_client = None
-                model = ChatOpenAI(
-                    model_name=self.model_name,
-                    openai_api_key=self.openai_api_key,
-                    http_client=http_client,
-                    temperature=1
-                    if "o1" in self.model_name or "gpt-5" in self.model_name
-                    else TEMPERATURE,
-                    presence_penalty=0,
-                    frequency_penalty=0,
-                    timeout=60,
-                    # Минимизируем рассуждения, если модель это поддерживает.
-                    reasoning_effort="low",
-                )
-                response = model.invoke(prompt_messages)
-                return response
-            except Exception:
-                tb_str = traceback.format_exc()
-                if proxy:
-                    logger.error(
-                        f"Ошибка доступа к LLM с использованием прокси {proxy.split('@')[-1]}: \n Traceback: {tb_str}"
-                    )
-                else:
-                    logger.error(f"Ошибка доступа к LLM: \n Traceback: {tb_str}")
-                time.sleep(3)
+        response = self.model.invoke(prompt_messages)
+        return response
 
 
-class GeminiModel(AIModel):
-    """Получить доступ к модели Gemini"""
+class OpenRouterModel(AIModel):
+    """Get access to models via OpenRouter API"""
 
-    def __init__(self, api_key: str, llm_model: str, llm_proxy: Union[str, None] = None) -> None:
+    def __init__(self, api_key: str, llm_model: str, llm_proxy: str = None) -> None:
+        from langchain_openai import ChatOpenAI
+
+        http_client = httpx.Client(proxy=llm_proxy) if llm_proxy else None
         self.llm_proxy = llm_proxy
-        self.model = llm_model
-        self.google_api_key = api_key
+        self.model_name = llm_model
+        self.model = ChatOpenAI(
+            model_name=self.model_name,
+            openai_api_key=api_key,
+            openai_api_base="https://openrouter.ai/api/v1",
+            http_client=http_client,
+            temperature=TEMPERATURE,
+            timeout=60,
+        )
 
     def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
-        logger.info("Получен доступ к модели через Gemini API")
+        logger.info("Got access to model via OpenRouter API")
         prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
-        # случайно выбираем одну прокси за другой, пока запрос к LLM не пройдет
-        llm_proxies = self.llm_proxy.copy()
-        random.shuffle(llm_proxies)
-
-        for proxy in llm_proxies:
-            try:
-                os.environ["https_proxy"] = proxy
-                model = ChatGoogleGenerativeAI(
-                    model=self.model,
-                    google_api_key=self.google_api_key,
-                    temperature=TEMPERATURE,
-                    safety_settings={
-                        HarmCategory.HARM_CATEGORY_UNSPECIFIED: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_DEROGATORY: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_TOXICITY: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_VIOLENCE: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_SEXUAL: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_MEDICAL: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_DANGEROUS: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                        HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                    },
-                )
-                response = model.invoke(prompt_messages)
-                del os.environ["https_proxy"]
-                return response
-            except Exception:
-                tb_str = traceback.format_exc()
-                if proxy:
-                    logger.error(
-                        f"Ошибка доступа к LLM с использованием прокси {proxy.split('@')[-1]}: \n Traceback: {tb_str}"
-                    )
-                else:
-                    logger.error(f"Ошибка доступа к LLM: \n Traceback: {tb_str}")
-                time.sleep(3)
-            finally:
-                try:
-                    del os.environ["https_proxy"]
-                except KeyError:
-                    pass
+        response = self.model.invoke(prompt_messages)
+        return response
 
 
 # class ClaudeModel(AIModel):
