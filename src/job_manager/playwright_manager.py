@@ -1014,8 +1014,8 @@ class PlaywrightJobManager:
 
         await self.pause_async(1, 2)
 
-        await self._select_resume(resume_component)
-        logger.info("Выбрали резюме")
+        if await self._select_resume(resume_component):
+            logger.info("Выбрали резюме")
 
         # Ждём модального окна или перехода
         await self._handle_interfering_messages()
@@ -1081,28 +1081,111 @@ class PlaywrightJobManager:
             logger.info("Жмем кнопку отправки сопроводительного письма (вариант 2)")
             await safe_click(self.page, '[data-qa="vacancy-response-submit-popup"]')
             await self.pause_async(3, 4)
+            await self._attach_cover_letter_on_success(cover_letter)
             return "Success", ""
 
-        # Жмем кнопку 'Откликнуться'
-        submit_btn_selector = "xpath=//*[text()='Откликнуться']"
+        # Финальная отправка отклика. Кнопку ищем ТОЛЬКО внутри открытого модального окна,
+        # иначе селектор цепляет кнопки 'Откликнуться' из блока похожих вакансий на странице
+        # успеха и бот случайно откликается на чужую вакансию.
+        submit_btn_selector = "[role='dialog'] >> xpath=.//*[text()='Откликнуться']"
         if await self.page.locator(submit_btn_selector).count() > 0:
             logger.info("Жмем кнопку 'Откликнуться'")
             await safe_click(self.page, submit_btn_selector)
             await self.pause_async(3, 4)
+            await self._attach_cover_letter_on_success(cover_letter)
+            return "Success", ""
+
+        # Модального окна нет — отклик уже отправлен первым кликом (одиночное резюме без анкеты).
+        # Проверяем признак успешного отклика, прикрепляем письмо и завершаем.
+        if await self._response_succeeded():
+            await self._attach_cover_letter_on_success(cover_letter)
             return "Success", ""
 
         return "Error", "Кнопка отправки не найдена"
 
-    async def _select_resume(self, resume_component: Any) -> None:
-        """Выбирает резюме из списка."""
-        if not self.page or not resume_component:
+    async def _response_succeeded(self) -> bool:
+        """Проверяет, что отклик отправлен (на странице есть блок успешного отклика)."""
+        success_selectors = [
+            '[data-qa="responded-success-attach-cover-letter"]',
+            '[data-qa="vacancy-response-link-view-topic"]',
+        ]
+        for selector in success_selectors:
+            if await self.page.locator(selector).count() > 0:
+                return True
+        return False
+
+    async def _attach_cover_letter_on_success(self, cover_letter: str) -> None:
+        """Прикрепляет сопроводительное письмо на странице успешного отклика.
+
+        После отправки отклика hh.ru может показать кнопку «Приложить сопроводительное
+        письмо». Если она появилась, жмём её, вводим текст письма и отправляем его.
+        Если кнопка не появилась (письмо уже приложено или другой сценарий) — выходим.
+        """
+        if not cover_letter:
             return
+
+        attach_btn_selector = '[data-qa="responded-success-attach-cover-letter"]'
+        attach_btn = self.page.locator(attach_btn_selector)
+        try:
+            await attach_btn.wait_for(state="visible", timeout=5000)
+        except Exception:
+            # Кнопка не появилась — письмо уже приложено или сценарий другой
+            return
+
+        logger.info("Найдена кнопка 'Приложить сопроводительное письмо' на странице успеха")
+        if not await safe_click(self.page, attach_btn_selector, timeout=5000):
+            return
+        await self.pause_async(1, 2)
+
+        # Заполняем поле письма в открывшемся модальном окне. Запасной селектор —
+        # на случай иной разметки (при промахе safe_fill сохранит снимок).
+        letter_selectors = [
+            '[role="dialog"] textarea[name="text"]',
+            'textarea[name="text"]',
+        ]
+        filled = False
+        for selector in letter_selectors:
+            if await safe_fill(
+                self.page,
+                selector,
+                cover_letter,
+                wait_for_timeout=5000,
+                supress_warnings=True,
+            ):
+                filled = True
+                break
+        if not filled:
+            logger.warning("Не удалось найти поле ввода сопроводительного письма на странице успеха")
+            return
+        await self.pause_async(1, 2)
+
+        # Отправляем письмо кнопкой 'Отправить' модального окна.
+        submit_selectors = [
+            '[data-qa="vacancy-response-letter-submit"]',
+            "xpath=//button[contains(., 'Отправить')]",
+        ]
+        for selector in submit_selectors:
+            if await safe_click(self.page, selector, timeout=5000, supress_warnings=True):
+                logger.info("Сопроводительное письмо приложено на странице успеха")
+                await self.pause_async(2, 3)
+                return
+        logger.warning("Не удалось найти кнопку отправки сопроводительного письма на странице успеха")
+
+    async def _select_resume(self, resume_component: Any) -> bool:
+        """Выбирает резюме из списка. Возвращает True, если резюме было выбрано.
+
+        Выбор резюме появляется только когда у пользователя несколько резюме. При
+        единственном резюме триггер выбора отсутствует — это штатная ситуация, поэтому
+        метод просто возвращает False без предупреждений.
+        """
+        if not self.page or not resume_component:
+            return False
 
         target_title = (getattr(resume_component, "job_title", "") or "").strip()
         if not target_title:
-            return
+            return False
 
-        # Триггер выбора резюме присутствует только в некоторых сценариях отклика.
+        # Триггер выбора резюме присутствует только при наличии нескольких резюме.
         trigger_selectors = [
             "[data-qa='resume-title']",
             "xpath=//*[@data-qa='resume-title']",
@@ -1110,25 +1193,27 @@ class PlaywrightJobManager:
         trigger_clicked = False
         for selector in trigger_selectors:
             try:
-                if await safe_click(self.page, selector, timeout=2000):
+                if await safe_click(self.page, selector, timeout=2000, supress_warnings=True):
                     trigger_clicked = True
                     break
             except Exception:
                 continue
 
-        if trigger_clicked:
-            await self.pause_async(0.5, 1)
+        if not trigger_clicked:
+            return False
+
+        await self.pause_async(0.5, 1)
 
         # Список вариантов отображается как magritte select list
         options_locator = self.page.locator("[data-qa^='magritte-select-option-']")
         try:
             await options_locator.first.wait_for(state="visible", timeout=3000)
         except Exception:
-            return
+            return False
 
         options = await options_locator.all()
         if not options:
-            return
+            return False
 
         titles: List[str] = []
         for opt in options:
@@ -1152,7 +1237,7 @@ class PlaywrightJobManager:
                 best_idx = idx
 
         if best_idx is None:
-            return
+            return False
 
         logger.info(f"Выбрано резюме для отклика: {titles[best_idx]}")
 
@@ -1161,6 +1246,8 @@ class PlaywrightJobManager:
         await self.pause_async(0.5, 1)
 
         await safe_click(self.page, "[data-qa='vacancy-response-submit-popup']", timeout=10000)
+
+        return True
 
     async def _handle_question(
         self,
@@ -1274,6 +1361,7 @@ class PlaywrightJobManager:
             )
             if await sibling_textarea.count() > 0:
                 answer = gpt_answerer.answer_question_textual_wide_range(question_text)
+                answer = resume_component.deanonymize_personal_information(answer)
                 await sibling_textarea.fill(answer)
                 return True, ""
 
