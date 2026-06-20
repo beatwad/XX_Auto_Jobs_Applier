@@ -144,6 +144,7 @@ async def safe_click(
         if element_count == 0:
             if not supress_warnings:
                 logger.warning(f"Element not found: {selector}")
+            await debug_capture(page, f"safe_click_not_found_{selector}")
             return False
 
         # Click all elements until one click succeeds
@@ -171,6 +172,7 @@ async def safe_click(
                     continue
             if not supress_warnings:
                 logger.warning(f"Failed to click any matched element '{selector}'")
+            await debug_capture(page, f"safe_click_all_failed_{selector}")
             return False
 
         # Select element by provided index when not trying all
@@ -220,6 +222,7 @@ async def safe_fill(
             try:
                 await locator.wait_for(state="attached", timeout=wait_for_timeout)
             except Exception:
+                await debug_capture(page, f"safe_fill_wait_timeout_{selector}")
                 return False
 
         element_count = await locator.count()
@@ -227,6 +230,7 @@ async def safe_fill(
         if element_count == 0:
             if not supress_warnings:
                 logger.warning(f"No elements found for selector: {selector}")
+            await debug_capture(page, f"safe_fill_not_found_{selector}")
             return False
 
         # Select the first matched element (even if multiple)

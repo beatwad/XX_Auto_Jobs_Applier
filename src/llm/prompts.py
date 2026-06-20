@@ -255,7 +255,7 @@ coverletter_template = """
 - есть опыт работы с Docker/Docker Compose
 - знаком с Airflow, FastAPI, Flask
 - проекты веду в git
-тг для связи: alexneth93
+тг для связи: <telegram_username>
 ```
 ##Описание работы##
 ```

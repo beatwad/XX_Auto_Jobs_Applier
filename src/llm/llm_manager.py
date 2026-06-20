@@ -329,10 +329,11 @@ class LLMLogger:
         try:
             # Рассчитать общую стоимость запроса
             prices = PRICE_DICT.get(
-                LLM_MODEL, {"price_per_input_token": 1.5e-7, "price_per_output_token": 6e-7}
+                LLM_MODEL.replace("google/", ""),
+                {"input_cost_per_token": 1.5e-7, "output_cost_per_token": 6e-7},
             )
-            price_per_input_token = prices["price_per_input_token"]
-            price_per_output_token = prices["price_per_output_token"]
+            price_per_input_token = prices["input_cost_per_token"]
+            price_per_output_token = prices["output_cost_per_token"]
             total_cost = (input_tokens * price_per_input_token) + (
                 output_tokens * price_per_output_token
             )

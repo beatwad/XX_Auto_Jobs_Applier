@@ -307,27 +307,15 @@ class PlaywrightJobManager:
         """
         self.search_params = search_params or {}
         await self.start_search(resume_id)
-        opened = False
         await self.pause_async(3, 4)
-        for selector in (
-            "[data-qa='advanced-search']",
-            "[aria-label='Расширенный поиск']",
-            "xpath=//*[contains(., 'Расширенный поиск')]",
-        ):
-            if await safe_click(self.page, selector, timeout=10000):
-                opened = True
-                break
-
-        if not opened:
-            logger.warning(
-                "Кнопка расширенного поиска не найдена; пробуем открыть URL расширенного поиска"
-            )
-            try:
-                await self.page.goto("https://hh.ru/search/vacancy/advanced")
-                logger.info("Переход на страницу: https://hh.ru/search/vacancy/advanced")
-            except Exception as e:
-                logger.error(f"Не удалось перейти на страницу расширенного поиска: {e}")
-                return
+        # hh.ru убрал отдельную кнопку расширенного поиска (теперь это drawer «Фильтры»),
+        # поэтому открываем классическую страницу расширенного поиска напрямую по URL.
+        try:
+            await self.page.goto("https://hh.ru/search/vacancy/advanced")
+            logger.info("Переход на страницу: https://hh.ru/search/vacancy/advanced")
+        except Exception as e:
+            logger.error(f"Не удалось перейти на страницу расширенного поиска: {e}")
+            return
 
         # Ждём появления интерфейса расширенного поиска
         try:
@@ -435,7 +423,12 @@ class PlaywrightJobManager:
     async def _set_keywords(self) -> None:
         """Устанавливает ключевые слова."""
         logger.debug("Вводим ключевые слова")
-        keywords = self.search_params.get("keywords") or self.search_params.get("text") or ""
+        keywords = (
+            self.search_params.get("keywords")
+            or self.search_params.get("text")
+            or self.search_params.get("job_title")
+            or ""
+        )
         keywords = str(keywords).strip()
         if not keywords:
             return
@@ -1091,10 +1084,10 @@ class PlaywrightJobManager:
             return "Success", ""
 
         # Жмем кнопку 'Откликнуться'
-        submit_btn = self.page.locator("xpath=//*[text()='Откликнуться']")
-        if await submit_btn.count() > 0:
+        submit_btn_selector = "xpath=//*[text()='Откликнуться']"
+        if await self.page.locator(submit_btn_selector).count() > 0:
             logger.info("Жмем кнопку 'Откликнуться'")
-            await safe_click(self.page, submit_btn)
+            await safe_click(self.page, submit_btn_selector)
             await self.pause_async(3, 4)
             return "Success", ""
 
