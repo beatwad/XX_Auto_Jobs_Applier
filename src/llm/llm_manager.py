@@ -1,4 +1,5 @@
 import os
+import random
 import textwrap
 import time
 import traceback
@@ -34,26 +35,65 @@ TEMPERATURE = config.get("TEMPERATURE", 0.4)
 
 
 class AIModel(ABC):
+    """Базовый класс доступа к LLM с перебором прокси до успешного запроса."""
+
+    def __init__(
+        self, api_key: str, llm_model: str, llm_proxy: list[str] | str | None = None
+    ) -> None:
+        self.api_key = api_key
+        self.llm_model = llm_model
+        # приводим прокси к списку; пустой список означает работу без прокси
+        if not llm_proxy:
+            self.proxies: list[str | None] = [None]
+        elif isinstance(llm_proxy, str):
+            self.proxies = [llm_proxy]
+        else:
+            self.proxies = list(llm_proxy)
+
     @abstractmethod
-    def invoke(self, prompt: str) -> str:
-        pass
+    def _build_model(self, llm_proxy: str | None) -> Any:
+        """Создаёт клиент LLM-провайдера для указанного прокси (или без прокси)."""
+
+    @staticmethod
+    def _mask_proxy(proxy: str | None) -> str:
+        """Маскируем прокси для логов — оставляем только хост."""
+        if not proxy:
+            return "без прокси"
+        return proxy.split("@")[-1]
+
+    def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
+        """Перебираем прокси в случайном порядке, пока запрос к LLM не выполнится."""
+        prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
+        proxies = self.proxies[:]
+        random.shuffle(proxies)
+        last_error: Exception | None = None
+        for proxy in proxies:
+            try:
+                model = self._build_model(proxy)
+                response = model.invoke(prompt_messages)
+                logger.info(f"Запрос к LLM выполнен успешно (прокси: {self._mask_proxy(proxy)})")
+                return response
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Ошибка запроса к LLM через прокси {self._mask_proxy(proxy)}: {e}")
+        # все прокси исчерпаны — пробрасываем последнюю ошибку
+        logger.error("Все прокси исчерпаны, запрос к LLM не выполнен")
+        raise last_error if last_error is not None else RuntimeError("Список прокси пуст")
 
 
 class GeminiModel(AIModel):
-    """Get access to Gemini model"""
+    """Доступ к модели Gemini."""
 
-    def __init__(self, api_key: str, llm_model: str, llm_proxy: str = None) -> None:
+    def _build_model(self, llm_proxy: str | None) -> Any:
         from google.genai import types
         from langchain_google_genai import ChatGoogleGenerativeAI, HarmBlockThreshold, HarmCategory
 
-        # os.environ["https_proxy"] = llm_proxy
         http_options = types.HttpOptions(
             client_args={"proxy": llm_proxy}, async_client_args={"proxy": llm_proxy}
         )
-        self.google_api_key = api_key
-        self.model = ChatGoogleGenerativeAI(
-            model=llm_model,
-            google_api_key=self.google_api_key,
+        return ChatGoogleGenerativeAI(
+            model=self.llm_model,
+            google_api_key=self.api_key,
             temperature=TEMPERATURE,
             thinking_level="minimal",
             safety_settings={
@@ -65,75 +105,48 @@ class GeminiModel(AIModel):
             http_options=http_options,
         )
 
-    def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
-        logger.info("Got access to model via Gemini API")
-        prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
-        # randomly select one proxy after another until LLM request succeeds
-        response = self.model.invoke(prompt_messages)
-        return response
-
 
 class OpenAIModel(AIModel):
-    """Get access to OpenAI model"""
+    """Доступ к модели OpenAI."""
 
-    def __init__(self, api_key: str, llm_model: str, llm_proxy: str = None) -> None:
+    def _build_model(self, llm_proxy: str | None) -> Any:
         from langchain_openai import ChatOpenAI
 
-        if llm_proxy:
-            http_client = httpx.Client(proxy=llm_proxy)
-        else:
-            http_client = None
-        self.llm_proxy = llm_proxy
-        self.model_name = llm_model
-        self.openai_api_key = api_key
+        http_client = httpx.Client(proxy=llm_proxy) if llm_proxy else None
         is_reasoning_model = (
-            "o1" in self.model_name
-            or "o3" in self.model_name
-            or "o4" in self.model_name
-            or "gpt-5" in self.model_name
+            "o1" in self.llm_model
+            or "o3" in self.llm_model
+            or "o4" in self.llm_model
+            or "gpt-5" in self.llm_model
         )
         extra = {"reasoning_effort": "minimal"} if is_reasoning_model else {}
-        self.model = ChatOpenAI(
-            model_name=self.model_name,
-            openai_api_key=self.openai_api_key,
+        return ChatOpenAI(
+            model_name=self.llm_model,
+            openai_api_key=self.api_key,
             http_client=http_client,
-            temperature=1 if is_reasoning_model or "gpt-5" in self.model_name else TEMPERATURE,
+            temperature=1 if is_reasoning_model or "gpt-5" in self.llm_model else TEMPERATURE,
             presence_penalty=0,
             frequency_penalty=0,
             timeout=60,
             **extra,
         )
 
-    def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
-        logger.info("Got access to model via OpenAI API")
-        prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
-        response = self.model.invoke(prompt_messages)
-        return response
-
 
 class OpenRouterModel(AIModel):
-    """Get access to models via OpenRouter API"""
+    """Доступ к моделям через OpenRouter API."""
 
-    def __init__(self, api_key: str, llm_model: str, llm_proxy: str = None) -> None:
+    def _build_model(self, llm_proxy: str | None) -> Any:
         from langchain_openai import ChatOpenAI
 
         http_client = httpx.Client(proxy=llm_proxy) if llm_proxy else None
-        self.llm_proxy = llm_proxy
-        self.model_name = llm_model
-        self.model = ChatOpenAI(
-            model_name=self.model_name,
-            openai_api_key=api_key,
+        return ChatOpenAI(
+            model_name=self.llm_model,
+            openai_api_key=self.api_key,
             openai_api_base="https://openrouter.ai/api/v1",
             http_client=http_client,
             temperature=TEMPERATURE,
             timeout=60,
         )
-
-    def invoke(self, prompt: ChatPromptTemplate) -> BaseMessage:
-        logger.info("Got access to model via OpenRouter API")
-        prompt_messages = [SystemMessage(content=prompts.custom_instructions)] + prompt.messages
-        response = self.model.invoke(prompt_messages)
-        return response
 
 
 # class ClaudeModel(AIModel):
@@ -219,6 +232,8 @@ class AIAdapter:
             return GeminiModel(api_key, LLM_MODEL, llm_proxy)
         elif LLM_MODEL_TYPE == "openai":
             return OpenAIModel(api_key, LLM_MODEL, llm_proxy)
+        elif LLM_MODEL_TYPE == "openrouter":
+            return OpenRouterModel(api_key, LLM_MODEL, llm_proxy)
         # elif LLM_MODEL_TYPE == "gigachat":
         #     return GigaChatModel(api_key, LLM_MODEL)
         # elif LLM_MODEL_TYPE == "claude":

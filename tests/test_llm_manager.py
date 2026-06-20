@@ -59,20 +59,27 @@ def mock_job():
 
 
 class TestGeminiModel:
-    @patch("src.llm.llm_manager.ChatGoogleGenerativeAI")
-    def test_init(self, mock_chat_gemini, mock_api_key, mock_llm_proxy):
+    def test_init(self, mock_api_key, mock_llm_proxy):
+        # Конструктор только сохраняет параметры и нормализует список прокси,
+        # клиент LLM строится лениво при вызове invoke
         from src.llm.llm_manager import GeminiModel
 
         model = GeminiModel(mock_api_key, "gemini-test-model", mock_llm_proxy)
 
-        assert model.google_api_key == mock_api_key
-        assert model.model == "gemini-test-model"
-        assert model.llm_proxy == mock_llm_proxy
+        assert model.api_key == mock_api_key
+        assert model.llm_model == "gemini-test-model"
+        assert model.proxies == mock_llm_proxy
 
-    @patch("src.llm.llm_manager.ChatGoogleGenerativeAI")
-    @patch("src.llm.llm_manager.os")
-    def test_invoke_success(self, mock_os, mock_chat_gemini, mock_api_key, mock_llm_proxy):
-        # Setup mock
+    def test_init_empty_proxy_uses_no_proxy(self, mock_api_key):
+        # Пустой список прокси означает работу без прокси
+        from src.llm.llm_manager import GeminiModel
+
+        model = GeminiModel(mock_api_key, "gemini-test-model", [])
+        assert model.proxies == [None]
+
+    @patch("langchain_google_genai.ChatGoogleGenerativeAI")
+    def test_invoke_success(self, mock_chat_gemini, mock_api_key, mock_llm_proxy):
+        # Настройка мока
         from src.llm.llm_manager import GeminiModel
 
         mock_model_instance = MagicMock()
@@ -84,44 +91,48 @@ class TestGeminiModel:
         model = GeminiModel(mock_api_key, "gemini-test-model", mock_llm_proxy)
         response = model.invoke(prompt)
 
-        # Verify
-        try:
-            mock_os.environ.__setitem__.assert_called_with("https_proxy", mock_llm_proxy[0])
-        except AssertionError:
-            mock_os.environ.__setitem__.assert_called_with("https_proxy", mock_llm_proxy[1])
+        # Первый же прокси сработал — модель построена и вызвана один раз
         mock_chat_gemini.assert_called_once()
         mock_model_instance.invoke.assert_called_once()
         assert response.content == "Test response"
-        mock_os.environ.__delitem__.assert_called_with("https_proxy")
 
-    @patch("src.llm.llm_manager.ChatGoogleGenerativeAI")
-    @patch("src.llm.llm_manager.os")
-    def test_invoke_exception_handling(
-        self, mock_os, mock_chat_gemini, mock_api_key, mock_llm_proxy
-    ):
-        # Setup mock to raise exception on first proxy, succeed on second
+    @patch("src.llm.llm_manager.random.shuffle", lambda x: None)
+    @patch("langchain_google_genai.ChatGoogleGenerativeAI")
+    def test_invoke_failover_to_next_proxy(self, mock_chat_gemini, mock_api_key, mock_llm_proxy):
+        # Первый прокси падает — перебираем список и используем следующий
         from src.llm.llm_manager import GeminiModel
 
-        mock_model_instance1 = MagicMock()
-        mock_model_instance1.invoke.side_effect = Exception("API Error")
+        failing_instance = MagicMock()
+        failing_instance.invoke.side_effect = Exception("Proxy 1 down")
+        ok_instance = MagicMock()
+        ok_instance.invoke.return_value = AIMessage(content="Success response")
+        mock_chat_gemini.side_effect = [failing_instance, ok_instance]
 
-        mock_model_instance2 = MagicMock()
-        mock_model_instance2.invoke.return_value = AIMessage(content="Success response")
+        prompt = ChatPromptTemplate.from_template("Test prompt")
 
-        mock_chat_gemini.side_effect = [mock_model_instance1, mock_model_instance2]
+        model = GeminiModel(mock_api_key, "gemini-test-model", mock_llm_proxy)
+        response = model.invoke(prompt)
+
+        assert mock_chat_gemini.call_count == 2
+        assert response.content == "Success response"
+
+    @patch("src.llm.llm_manager.random.shuffle", lambda x: None)
+    @patch("langchain_google_genai.ChatGoogleGenerativeAI")
+    def test_invoke_all_proxies_fail(self, mock_chat_gemini, mock_api_key, mock_llm_proxy):
+        # Если все прокси исчерпаны — пробрасываем последнюю ошибку
+        from src.llm.llm_manager import GeminiModel
+
+        failing_instance = MagicMock()
+        failing_instance.invoke.side_effect = Exception("API Error")
+        mock_chat_gemini.return_value = failing_instance
 
         prompt = ChatPromptTemplate.from_template("Test prompt")
 
         model = GeminiModel(mock_api_key, "gemini-test-model", mock_llm_proxy)
 
-        with patch("src.llm.llm_manager.time.sleep") as mock_sleep:
-            response = model.invoke(prompt)
-
-        # Verify fallback to second proxy
-        assert mock_os.environ.__setitem__.call_count == 2
-        assert mock_chat_gemini.call_count == 2
-        assert mock_sleep.called
-        assert response.content == "Success response"
+        with pytest.raises(Exception, match="API Error"):
+            model.invoke(prompt)
+        assert mock_chat_gemini.call_count == len(mock_llm_proxy)
 
 
 class TestAIAdapter:

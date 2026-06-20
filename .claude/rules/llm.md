@@ -30,10 +30,18 @@ letter = gpt.write_cover_letter()
 
 ## Providers
 
-- `AIAdapter` currently supports `"openai"` and `"gemini"` only. `claude`, `ollama`, `huggingface`,
-  `gigachat` exist as **commented-out** classes — to enable one, uncomment its `AIModel` subclass and
-  its branch in `AIAdapter._create_model`.
-- Requests rotate through the shuffled `llm_proxy` list until one succeeds.
+- `AIAdapter` currently supports `"openai"`, `"openrouter"` and `"gemini"`. `openrouter` reuses
+  `langchain_openai.ChatOpenAI` pointed at `https://openrouter.ai/api/v1`, so any model on
+  OpenRouter is addressed by its slug (e.g. `anthropic/claude-sonnet-4-6`). `claude`, `ollama`,
+  `huggingface`, `gigachat` exist as **commented-out** classes — to enable one, uncomment its
+  `AIModel` subclass and its branch in `AIAdapter._create_model`.
+- **Adding a provider**: subclass `AIModel` and implement only `_build_model(llm_proxy)` — it returns
+  the provider's chat client for a single proxy (or `None`). The base `AIModel.invoke` handles
+  prompt assembly and proxy failover; don't override it.
+- **Proxy failover**: `llm_proxy` is a `List[str]` (`Secrets.llm_proxy`). On every call, `AIModel.invoke`
+  shuffles the list and tries proxies one by one, rebuilding the client per proxy, until a request
+  succeeds; if all fail it re-raises the last error. An empty list means "no proxy". Proxies are
+  masked to host-only in logs (`proxy.split('@')[-1]`).
 
 ## Cost & logging
 

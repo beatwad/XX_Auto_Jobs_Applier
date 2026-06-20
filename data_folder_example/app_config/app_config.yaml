@@ -41,7 +41,7 @@ MINIMUM_WAIT_TIME_SEC: 10
 MINIMUM_LOG_LEVEL: "DEBUG"
 
 # Тип LLM
-# Возможные значения: "openai", "gigachat", "claude", "ollama", "gemini", "huggingface"
+# Возможные значения: "openai", "openrouter", "gemini"
 LLM_MODEL_TYPE: "openai"
 
 # Модель LLM
